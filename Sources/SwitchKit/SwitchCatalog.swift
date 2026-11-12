@@ -28,6 +28,7 @@ public struct SwitchCatalog {
         let recording = RecordingSwitch()
         let keyboard = KeyboardLockSwitch()
         let screenClean = ScreenCleanSwitch(keyboard: keyboard)
+        let hideWindows = HideWindowsSwitch()
 
         let items: [SwitchItem] = [
             SwitchItem(
@@ -156,6 +157,14 @@ public struct SwitchCatalog {
                     ]
                 },
                 perform: { try recording.toggle() }
+            ),
+            SwitchItem(
+                id: "hideWindows",
+                title: "Hide Windows",
+                symbolName: "eye.slash",
+                kind: .action,
+                subtitle: { hideWindows.subtitle },
+                perform: { try hideWindows.hideAll() }
             ),
             SwitchItem(
                 id: "quitAllApps",
