@@ -7,6 +7,19 @@ import ScreenCaptureKit
 /// overlay already knows the display and the rect, and cropping keeps the
 /// coordinate maths in one place.
 final class ScreenCaptureService {
+    /// `SCShareableContent` costs a few hundred milliseconds; scrolling capture
+    /// asks for a frame several times a second, so keep it briefly.
+    private var cachedContent: (content: SCShareableContent, date: Date)?
+
+    private func shareableContent() async throws -> SCShareableContent {
+        if let cachedContent, Date().timeIntervalSince(cachedContent.date) < 20 {
+            return cachedContent.content
+        }
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        cachedContent = (content, Date())
+        return content
+    }
+
     enum CaptureError: LocalizedError {
         case permission
         case displayNotFound
@@ -30,7 +43,7 @@ final class ScreenCaptureService {
     func captureDisplay(displayID: CGDirectDisplayID, excludingOwnApp: Bool = false) async throws -> CGImage {
         guard CGPreflightScreenCaptureAccess() else { throw CaptureError.permission }
 
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        let content = try await shareableContent()
         guard let display = content.displays.first(where: { $0.displayID == displayID }) else {
             throw CaptureError.displayNotFound
         }
@@ -61,10 +74,57 @@ final class ScreenCaptureService {
         }
     }
 
+    /// Captures just one region, so scrolling capture does not pay for a full
+    /// Retina display on every frame.
+    func captureRegion(
+        displayID: CGDirectDisplayID,
+        rect: CGRect,
+        screenFrame: CGRect,
+        excludingOwnApp: Bool = false
+    ) async throws -> CGImage {
+        guard CGPreflightScreenCaptureAccess() else { throw CaptureError.permission }
+
+        let content = try await shareableContent()
+        guard let display = content.displays.first(where: { $0.displayID == displayID }) else {
+            throw CaptureError.displayNotFound
+        }
+
+        let filter: SCContentFilter
+        if excludingOwnApp,
+           let ownApp = content.applications.first(where: { $0.processID == getpid() }) {
+            filter = SCContentFilter(display: display, excludingApplications: [ownApp], exceptingWindows: [])
+        } else {
+            filter = SCContentFilter(display: display, excludingWindows: [])
+        }
+
+        let pixels = Self.pixelSize(for: displayID)
+        let scale = pixels.width / max(1, screenFrame.width)
+        let configuration = SCStreamConfiguration()
+        configuration.sourceRect = CGRect(
+            x: rect.minX - screenFrame.minX,
+            y: screenFrame.maxY - rect.maxY,
+            width: rect.width,
+            height: rect.height
+        )
+        configuration.width = max(1, Int((rect.width * scale).rounded()))
+        configuration.height = max(1, Int((rect.height * scale).rounded()))
+        configuration.showsCursor = false
+        configuration.captureResolution = .best
+
+        do {
+            return try await SCScreenshotManager.captureImage(
+                contentFilter: filter,
+                configuration: configuration
+            )
+        } catch {
+            throw CaptureError.captureFailed(error.localizedDescription)
+        }
+    }
+
     func captureWindow(windowID: CGWindowID) async throws -> CGImage {
         guard CGPreflightScreenCaptureAccess() else { throw CaptureError.permission }
 
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        let content = try await shareableContent()
         guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
             throw CaptureError.windowNotFound
         }

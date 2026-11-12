@@ -6,7 +6,7 @@ import AppKit
 final class ScrollingCapture {
     private let region: CGRect
     private let capture: () async -> CGImage?
-    private let sampleWidth = 240
+    private let sampleWidth = 320
 
     private var slices: [CGImage] = []
     private var previousGray: ([UInt8], Int, Int)?
@@ -28,6 +28,12 @@ final class ScrollingCapture {
     func start() {
         guard !isRunning else { return }
         isRunning = true
+        let header = "\(String(format: "%.3f", Date().timeIntervalSince1970)) start region=\(region.integral)\n"
+        try? header.write(
+            to: URL(fileURLWithPath: "/tmp/switchdeck-scroll.log"),
+            atomically: true,
+            encoding: .utf8
+        )
 
         timer = Timer.scheduledTimer(withTimeInterval: 0.14, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
@@ -37,6 +43,7 @@ final class ScrollingCapture {
     func stop() {
         guard isRunning else { return }
         isRunning = false
+        log("stop slices=\(slices.count) height=\(totalHeight)")
         timer?.invalidate()
         timer = nil
         onFinish?(compose())
@@ -50,7 +57,10 @@ final class ScrollingCapture {
             guard let self else { return }
             let frame = await self.capture()
             self.busy = false
-            guard let frame else { return }
+            guard let frame else {
+                self.log("frame nil")
+                return
+            }
             self.append(frame)
         }
     }
@@ -70,7 +80,10 @@ final class ScrollingCapture {
 
         guard shift > 0 else {
             idleTicks += 1
-            if !slices.isEmpty, idleTicks >= 8 {
+            log("shift=\(shift) idle=\(idleTicks)")
+            // Only stop automatically once something was actually stitched;
+            // waiting before the first scroll should not end the capture.
+            if slices.count > 1, idleTicks >= 36 {
                 stop()
             }
             return
@@ -80,6 +93,7 @@ final class ScrollingCapture {
         let fullShift = Int(
             Double(shift) * Double(frame.height) / Double(max(1, gray.2))
         )
+        log("shift=\(shift) full=\(fullShift) of \(frame.height)")
         guard fullShift > 0, fullShift < frame.height - 4 else { return }
 
         let cropRect = CGRect(
@@ -93,6 +107,18 @@ final class ScrollingCapture {
         slices.append(slice)
         totalHeight += slice.height
         onUpdate?()
+    }
+
+    private func log(_ message: String) {
+        let url = URL(fileURLWithPath: "/tmp/switchdeck-scroll.log")
+        let line = "\(String(format: "%.3f", Date().timeIntervalSince1970)) \(message)\n"
+        if let handle = try? FileHandle(forWritingTo: url) {
+            handle.seekToEndOfFile()
+            handle.write(Data(line.utf8))
+            try? handle.close()
+        } else {
+            try? line.write(to: url, atomically: true, encoding: .utf8)
+        }
     }
 
     private func compose() -> CGImage? {
@@ -171,7 +197,7 @@ final class ScrollingCapture {
     ) -> Int {
         let width = min(previous.1, current.1)
         let height = min(previous.2, current.2)
-        let band = min(24, max(4, height / 3))
+        let band = min(30, max(4, height / 3))
         let anchor = height / 4
         let maxShift = min(height - band - anchor, height / 2)
         guard maxShift > 0 else { return 0 }

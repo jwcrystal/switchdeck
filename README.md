@@ -45,14 +45,14 @@ Settings › Customize reorders and hides switches; the choice is stored in
 
 - `⌥E` starts a capture (installed once as a default; change it in Settings › Shortcuts).
 - Dragging a region enters editing **in place**: the selection stays on screen, everything outside dims, and the toolbar appears under the region — no second window. Clicking a window edits at that window's frame; `F` selects the whole screen; `R` restores the last region.
-- The default tool is Select, so the toolbar is optional: click an active tool again to cancel it and go back to selecting. With a tool active, dragging inside draws:
+- The default tool is Select. With a tool active, dragging inside draws:
   -  rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (S/M/L, optional bubble), numbered markers, mosaic and blur.
 - The region keeps its eight handles while editing, so it can still be resized; while dragging, the live screen shows through and the frozen image is refreshed on release.
 - While selecting, the colour under the pointer is shown with its value and pixel coordinates; `⌥` cycles HEX / RGB / HSL, and `C` copies the value, leaves capture mode and shows a short "Copied …" toast. The readout is hidden once editing starts.
 - The region is frozen the moment editing starts, so mosaic and blur preview exactly what gets saved.
-- The toolbar keeps every tool on one row; variant options open small submenus: arrow style (including an S curve), filled shapes, mosaic strength, numbered marker shape, highlighter opacity, text size and bubble.
+- The toolbar keeps every tool on one row, with no extra variant buttons. Clicking the active tool again (or right-clicking it) opens its options: arrow style (including an S curve), filled shapes, mosaic strength, numbered marker shape, highlighter opacity, text size and bubble.
 - The signature button adds a watermark (the macOS full user name); its popover edits the text, colour, position (four corners, centre or a tiled pattern), size (S/M/L), angle (0/30/45°) and opacity. It is clipped to the capture, so a rotated or tiled watermark never spills outside the selection. The eye-slash button hides it from the image but keeps the text in the PNG metadata.
-- The scroll button starts a scrolling capture: scroll the window, `Enter` finishes and saves/copies the stitched image, `Esc` cancels (vertical only; fixed headers are not detected yet).
+- The scroll button starts a scrolling capture. The overlay lets the wheel, clicks and drags through to the window below, and a small panel with **Done** / **Cancel** tracks the stitched height; `Enter` also finishes and `Esc` cancels. The stitched image is saved and copied (vertical only; fixed headers are not detected yet).
 - `Enter` copies, `Space` saves a PNG straight into ~/Downloads as `SwitchDeck Screenshot <date>.png` (folder and prefix are the UserDefaults keys that Settings will expose), `P` pins on screen, `⌘Z` undoes, `Esc` closes.
 - Pinned images: the corner × or `Esc` closes, scroll resizes, `⌘`-scroll changes opacity, right-click has Copy / 50% Opacity / Close.
 

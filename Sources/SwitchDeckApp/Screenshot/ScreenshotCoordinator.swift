@@ -35,6 +35,25 @@ final class ScreenshotCoordinator {
         start(initialSelection: CGRect(x: 300, y: 240, width: 900, height: 520))
     }
 
+    /// Debug: scrolling capture over a region of the main screen.
+    func beginScrollingDemo() {
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let rect = CGRect(
+            x: screen.frame.midX - 350,
+            y: screen.frame.midY - 210,
+            width: 700,
+            height: 420
+        )
+        start(initialSelection: rect)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            self?.selections.startScrollingForDebug()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 7) { [weak self] in
+            self?.selections.stopScrollingForDebug()
+        }
+    }
+
     /// Debug: demo plus a tiled, rotated watermark.
     func beginWatermarkDemo() {
         beginDemo()
@@ -109,10 +128,13 @@ final class ScreenshotCoordinator {
     }
 
     private func captureRegion(_ rect: CGRect, _ screen: NSScreen) async -> CGImage? {
-        guard let displayID = Self.displayID(for: screen),
-              let full = try? await capture.captureDisplay(displayID: displayID, excludingOwnApp: true)
-        else { return nil }
-        return capture.crop(image: full, to: rect, screenFrame: screen.frame)
+        guard let displayID = Self.displayID(for: screen) else { return nil }
+        return try? await capture.captureRegion(
+            displayID: displayID,
+            rect: rect,
+            screenFrame: screen.frame,
+            excludingOwnApp: true
+        )
     }
 
     // MARK: - Finish

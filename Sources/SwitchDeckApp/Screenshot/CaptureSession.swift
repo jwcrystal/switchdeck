@@ -25,6 +25,16 @@ final class CaptureSession: ObservableObject {
             }
         }
 
+        /// Tools whose variants live in a menu on the tool itself.
+        var hasOptions: Bool {
+            switch self {
+            case .rectangle, .ellipse, .arrow, .highlighter, .text, .number, .mosaic, .blur:
+                return true
+            case .select, .line, .pen:
+                return false
+            }
+        }
+
         var help: String {
             switch self {
             case .select: return "Select and move (⌫ deletes)"
@@ -117,28 +127,12 @@ struct CapturePayload {
 struct CaptureToolbarView: View {
     @ObservedObject var session: CaptureSession
     @State private var showWatermarkSettings = false
+    @State private var optionsTool: CaptureSession.Tool?
 
     var body: some View {
         HStack(spacing: 5) {
             ForEach(CaptureSession.Tool.allCases) { tool in
-                Button {
-                    if session.tool == tool, tool != .select {
-                        session.tool = .select
-                    } else {
-                        session.tool = tool
-                    }
-                } label: {
-                    Image(systemName: tool.symbol)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .frame(width: 26, height: 26)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(session.tool == tool ? Color.accentColor.opacity(0.14) : .clear)
-                        )
-                        .foregroundStyle(session.tool == tool ? Color.accentColor : .secondary)
-                }
-                .buttonStyle(.plain)
-                .help(tool.help)
+                toolButton(tool)
             }
 
             Divider().frame(height: 18)
@@ -162,36 +156,6 @@ struct CaptureToolbarView: View {
 
             thickness(0.003, width: 1.4)
             thickness(0.006, width: 3.0)
-
-            if session.tool == .arrow {
-                Divider().frame(height: 18)
-                arrowStyleMenu
-            }
-
-            if session.tool == .text {
-                Divider().frame(height: 18)
-                textOptionsMenu
-            }
-
-            if session.tool == .rectangle || session.tool == .ellipse {
-                Divider().frame(height: 18)
-                shapeOptionsMenu
-            }
-
-            if session.tool == .mosaic || session.tool == .blur {
-                Divider().frame(height: 18)
-                mosaicOptionsMenu
-            }
-
-            if session.tool == .number {
-                Divider().frame(height: 18)
-                numberOptionsMenu
-            }
-
-            if session.tool == .highlighter {
-                Divider().frame(height: 18)
-                highlighterOptionsMenu
-            }
 
             Divider().frame(height: 18)
 
@@ -220,6 +184,115 @@ struct CaptureToolbarView: View {
         .fixedSize()
     }
 
+    private func toolButton(_ tool: CaptureSession.Tool) -> some View {
+        let active = session.tool == tool
+        var help = tool.help
+        if tool.hasOptions {
+            help += " · click again for options"
+        }
+
+        return Button {
+            if active, tool.hasOptions {
+                optionsTool = optionsTool == tool ? nil : tool
+            } else {
+                optionsTool = nil
+                session.tool = tool
+            }
+        } label: {
+            Image(systemName: tool == .arrow ? arrowSymbol : tool.symbol)
+                .font(.system(size: 12.5, weight: .medium))
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(active ? Color.accentColor.opacity(0.14) : .clear)
+                )
+                .foregroundStyle(active ? Color.accentColor : .secondary)
+                .overlay(alignment: .bottomTrailing) {
+                    if active, tool.hasOptions {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 6, weight: .bold))
+                            .offset(x: 3, y: 2)
+                            .opacity(0.8)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .contextMenu {
+            if tool.hasOptions {
+                toolOptions(for: tool)
+            }
+        }
+        .popover(
+            isPresented: Binding(
+                get: { optionsTool == tool },
+                set: { if !$0 { optionsTool = nil } }
+            ),
+            arrowEdge: .bottom
+        ) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text(tool.help)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                toolOptions(for: tool)
+            }
+            .toggleStyle(.checkbox)
+            .padding(12)
+            .frame(minWidth: 168, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func toolOptions(for tool: CaptureSession.Tool) -> some View {
+        switch tool {
+        case .arrow:
+            optionToggle("Straight", ArrowStyle.straight, in: \.arrowStyle)
+            optionToggle("Curved", ArrowStyle.curved, in: \.arrowStyle)
+            optionToggle("Elbow", ArrowStyle.elbow, in: \.arrowStyle)
+            optionToggle("S curve", ArrowStyle.sCurve, in: \.arrowStyle)
+
+        case .rectangle, .ellipse:
+            Toggle("Filled", isOn: $session.shapeFilled)
+
+        case .text:
+            optionToggle("Small text", CGFloat(0.016), in: \.textScale)
+            optionToggle("Medium text", CGFloat(0.022), in: \.textScale)
+            optionToggle("Large text", CGFloat(0.030), in: \.textScale)
+            Divider()
+            Toggle("Bubble background", isOn: $session.textBubble)
+
+        case .number:
+            optionToggle("Circle marker", NumberStyle.circle, in: \.numberStyle)
+            optionToggle("Square marker", NumberStyle.square, in: \.numberStyle)
+
+        case .mosaic, .blur:
+            optionToggle("Fine", CGFloat(8), in: \.mosaicBlock)
+            optionToggle("Medium", CGFloat(14), in: \.mosaicBlock)
+            optionToggle("Coarse", CGFloat(24), in: \.mosaicBlock)
+
+        case .highlighter:
+            optionToggle("Light", CGFloat(0.2), in: \.highlighterAlpha)
+            optionToggle("Medium", CGFloat(0.32), in: \.highlighterAlpha)
+            optionToggle("Strong", CGFloat(0.55), in: \.highlighterAlpha)
+
+        case .select, .line, .pen:
+            EmptyView()
+        }
+    }
+
+    private func optionToggle<Value: Hashable>(
+        _ title: String,
+        _ value: Value,
+        in keyPath: ReferenceWritableKeyPath<CaptureSession, Value>
+    ) -> some View {
+        Toggle(title, isOn: Binding(
+            get: { session[keyPath: keyPath] == value },
+            set: { isOn in
+                if isOn { session[keyPath: keyPath] = value }
+            }
+        ))
+    }
+
     private func thickness(_ value: CGFloat, width: CGFloat) -> some View {
         Button {
             session.lineWidth = value
@@ -246,104 +319,6 @@ struct CaptureToolbarView: View {
         case .elbow: return "arrow.turn.right.down"
         case .sCurve: return "arrow.up.forward"
         }
-    }
-
-    private var arrowStyleMenu: some View {
-        Menu {
-            Picker("Arrow style", selection: $session.arrowStyle) {
-                Text("Straight").tag(ArrowStyle.straight)
-                Text("Curved").tag(ArrowStyle.curved)
-                Text("Elbow").tag(ArrowStyle.elbow)
-                Text("S curve").tag(ArrowStyle.sCurve)
-            }
-        } label: {
-            optionLabel(arrowSymbol)
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Arrow style")
-    }
-
-    private var textOptionsMenu: some View {
-        Menu {
-            Picker("Text size", selection: $session.textScale) {
-                Text("Small").tag(CGFloat(0.016))
-                Text("Medium").tag(CGFloat(0.022))
-                Text("Large").tag(CGFloat(0.030))
-            }
-            Toggle("Bubble background", isOn: $session.textBubble)
-        } label: {
-            optionLabel("textformat.size")
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Text size and bubble")
-    }
-
-    private var shapeOptionsMenu: some View {
-        Menu {
-            Toggle("Filled", isOn: $session.shapeFilled)
-        } label: {
-            optionLabel(session.shapeFilled ? "square.fill" : "square")
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Fill or stroke")
-    }
-
-    private var mosaicOptionsMenu: some View {
-        Menu {
-            Button("Fine") { session.mosaicBlock = 8 }
-            Button("Medium") { session.mosaicBlock = 14 }
-            Button("Coarse") { session.mosaicBlock = 24 }
-        } label: {
-            optionLabel("square.grid.3x3")
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Mosaic strength")
-    }
-
-    private var numberOptionsMenu: some View {
-        Menu {
-            Button("Circle") { session.numberStyle = .circle }
-            Button("Square") { session.numberStyle = .square }
-        } label: {
-            optionLabel(session.numberStyle == .circle ? "circle" : "square")
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Marker shape")
-    }
-
-    private var highlighterOptionsMenu: some View {
-        Menu {
-            Button("Light") { session.highlighterAlpha = 0.2 }
-            Button("Medium") { session.highlighterAlpha = 0.32 }
-            Button("Strong") { session.highlighterAlpha = 0.55 }
-        } label: {
-            optionLabel("circle.lefthalf.filled")
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Highlighter opacity")
-    }
-
-    private func optionLabel(_ symbol: String) -> some View {
-        HStack(spacing: 1) {
-            Image(systemName: symbol)
-                .font(.system(size: 12.5, weight: .medium))
-            Image(systemName: "chevron.down")
-                .font(.system(size: 7, weight: .bold))
-        }
-        .frame(width: 32, height: 26)
-        .foregroundStyle(Color.secondary)
     }
 
     private var watermarkButton: some View {

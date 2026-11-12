@@ -54,6 +54,18 @@ final class SelectionController {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    func startScrollingForDebug() {
+        for window in windows {
+            (window.contentView as? SelectionView)?.startScrollingForDebug()
+        }
+    }
+
+    func stopScrollingForDebug() {
+        for window in windows {
+            (window.contentView as? SelectionView)?.stopScrollingForDebug()
+        }
+    }
+
     /// Debug helper: completes the current selection as if Enter was pressed.
     func completeForDebug(_ output: CaptureSession.Output, extraAnnotations: [Annotation] = []) {
         for window in windows {
@@ -145,6 +157,7 @@ private final class SelectionView: NSView {
     private enum ColorFormat: Int { case hex, rgb, hsl }
     private var colorFormat: ColorFormat = .hex
     private var scrolling: ScrollingCapture?
+    private var scrollHUD: ScrollHUD?
     private var scrollCancelled = false
     private var lastMousePoint: CGPoint = .zero
 
@@ -153,7 +166,6 @@ private final class SelectionView: NSView {
     private var penPoints: [CGPoint] = []
 
     private var toolbarHost: NSHostingView<CaptureToolbarView>?
-    private var toolsButton: NSButton?
     private var textField: NSTextField?
     private var textAnchor: CGPoint = .zero
     private var keyMonitor: Any?
@@ -514,12 +526,30 @@ private final class SelectionView: NSView {
             guard let self else { return nil }
             return await self.captureBase(global, self.screen)
         }
-        scroll.onUpdate = { [weak self] in self?.needsDisplay = true }
+        scroll.onUpdate = { [weak self] in
+            guard let self, let scroll = self.scrolling else { return }
+            self.scrollHUD?.update(height: scroll.totalHeight)
+            self.needsDisplay = true
+        }
         scroll.onFinish = { [weak self] image in self?.finishScrolling(image) }
 
         scrolling = scroll
         session.toolbarVisible = false
         layoutToolbar()
+
+        let hud = ScrollHUD()
+        hud.onDone = { [weak self] in self?.scrolling?.stop() }
+        hud.onCancel = { [weak self] in
+            self?.scrollCancelled = true
+            self?.scrolling?.stop()
+        }
+        hud.position(near: global, on: screen)
+        hud.orderFrontRegardless()
+        scrollHUD = hud
+
+        // Let the wheel, clicks and drags go to the window underneath while
+        // the border stays visible; the HUD is a separate window with buttons.
+        window?.ignoresMouseEvents = true
         scroll.start()
         needsDisplay = true
     }
@@ -527,6 +557,9 @@ private final class SelectionView: NSView {
     private func finishScrolling(_ image: CGImage?) {
         guard scrolling != nil else { return }
         scrolling = nil
+        window?.ignoresMouseEvents = false
+        scrollHUD?.orderOut(nil)
+        scrollHUD = nil
         session.toolbarVisible = true
         layoutToolbar()
         needsDisplay = true
@@ -547,31 +580,9 @@ private final class SelectionView: NSView {
         onCancel?()
     }
 
-    private func drawScrollingHUD() {
-        guard let scrolling else { return }
-        let text = "Scrolling… \(scrolling.totalHeight) px · Enter to finish · Esc to cancel"
-        let string = NSAttributedString(
-            string: text,
-            attributes: [
-                .font: NSFont.systemFont(ofSize: 13, weight: .medium),
-                .foregroundColor: NSColor.white,
-            ]
-        )
-        let size = string.size()
-        let box = NSRect(
-            x: bounds.midX - (size.width + 28) / 2,
-            y: bounds.minY + 42,
-            width: size.width + 28,
-            height: size.height + 16
-        )
-        NSColor.black.withAlphaComponent(0.6).setFill()
-        NSBezierPath(roundedRect: box, xRadius: 8, yRadius: 8).fill()
-        string.draw(at: NSPoint(x: box.minX + 14, y: box.minY + 8))
-    }
-
     private func drawEditingHint() {
         guard let toolbarHost else { return }
-        let text = "↩ Copy · Space Save · P Pin · Tab Tools · ⌘Z Undo · Esc Close"
+        let text = "↩ Copy · Space Save · P Pin · ⌘Z Undo · Esc Close"
         let string = NSAttributedString(
             string: text,
             attributes: [
@@ -610,6 +621,14 @@ private final class SelectionView: NSView {
 
     func finishForDebug(_ output: CaptureSession.Output) {
         finish(output)
+    }
+
+    func startScrollingForDebug() {
+        startScrolling()
+    }
+
+    func stopScrollingForDebug() {
+        scrolling?.stop()
     }
 
     func presetSelection(_ rect: CGRect) {
@@ -746,9 +765,10 @@ private final class SelectionView: NSView {
         sessionCancellable?.cancel()
         sessionCancellable = nil
         removeToolbar()
-        toolsButton?.removeFromSuperview()
-        toolsButton = nil
         removeTextField()
+        window?.ignoresMouseEvents = false
+        scrollHUD?.orderOut(nil)
+        scrollHUD = nil
     }
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
@@ -780,18 +800,6 @@ private final class SelectionView: NSView {
         addSubview(host)
         toolbarHost = host
 
-        let button = NSButton(title: "Tools", target: self, action: #selector(showTools))
-        button.bezelStyle = .rounded
-        button.controlSize = .small
-        button.isHidden = true
-        addSubview(button)
-        toolsButton = button
-
-        layoutToolbar()
-    }
-
-    @objc private func showTools() {
-        session.toolbarVisible = true
         layoutToolbar()
     }
 
@@ -810,17 +818,6 @@ private final class SelectionView: NSView {
 
         toolbarHost.frame = NSRect(x: x, y: y, width: size.width, height: size.height)
         toolbarHost.isHidden = !session.toolbarVisible
-
-        if let toolsButton {
-            toolsButton.isHidden = session.toolbarVisible
-            let buttonSize = toolsButton.fittingSize
-            toolsButton.frame = NSRect(
-                x: selection.midX - buttonSize.width / 2,
-                y: y,
-                width: buttonSize.width,
-                height: buttonSize.height
-            )
-        }
     }
 
     private func removeToolbar() {

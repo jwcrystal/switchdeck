@@ -53,6 +53,11 @@ enum SwitchDeckApp {
             return
         }
 
+        if arguments.contains("--region-bench") {
+            Dump.regionBench()
+            return
+        }
+
         let application = NSApplication.shared
         let delegate = AppDelegate()
         application.delegate = delegate
@@ -254,6 +259,46 @@ enum Dump {
         let height = ScrollingCapture.debugStitch([a, b])
         print("detected shift: \(shift) (expected 40, content moved up)")
         print("stitched height: \(height) (expected 340)")
+    }
+
+    /// Debug: times region captures, the frame source for scrolling capture.
+    @MainActor
+    static func regionBench() {
+        let service = ScreenCaptureService()
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        let displayID = (screen.deviceDescription[key] as? NSNumber)?.uint32Value ?? CGMainDisplayID()
+        let rect = CGRect(
+            x: screen.frame.midX - 300,
+            y: screen.frame.midY - 200,
+            width: 600,
+            height: 400
+        )
+
+        Task {
+            // First call warms the shareable-content cache; time the rest.
+            _ = try? await service.captureRegion(
+                displayID: displayID, rect: rect, screenFrame: screen.frame, excludingOwnApp: true
+            )
+
+            var size = CGSize.zero
+            var failures = 0
+            let start = Date()
+            for _ in 0..<10 {
+                if let image = try? await service.captureRegion(
+                    displayID: displayID, rect: rect, screenFrame: screen.frame, excludingOwnApp: true
+                ) {
+                    size = CGSize(width: image.width, height: image.height)
+                } else {
+                    failures += 1
+                }
+            }
+            let ms = Date().timeIntervalSince(start) * 100
+            print("region \(Int(rect.width))x\(Int(rect.height)) pts → \(Int(size.width))x\(Int(size.height)) px, \(String(format: "%.0f", ms)) ms/frame, \(failures) failures")
+            exit(0)
+        }
+
+        RunLoop.main.run()
     }
 
     /// Prints which normal window sits under the mouse, using the same
