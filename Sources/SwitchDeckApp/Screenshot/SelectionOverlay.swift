@@ -117,7 +117,7 @@ private final class SelectionWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 }
 
-private final class SelectionView: NSView {
+final class SelectionView: NSView {
     private enum Handle: CaseIterable {
         case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
     }
@@ -204,6 +204,10 @@ private final class SelectionView: NSView {
     // MARK: - Drawing
 
     override func draw(_ dirtyRect: NSRect) {
+        // The overlay is nonopaque. Clear the previous editor bitmap before
+        // drawing a live, transparent selection during scrolling capture.
+        NSColor.clear.setFill()
+        dirtyRect.fill(using: .copy)
         let path = NSBezierPath(rect: bounds)
         if let selection, selection.width > 1, selection.height > 1 {
             path.append(NSBezierPath(rect: selection))
@@ -225,7 +229,7 @@ private final class SelectionView: NSView {
                 return false
             }()
 
-            if !resizing {
+            if !resizing, scrolling == nil {
                 if let baseImage {
                     NSImage(cgImage: baseImage, size: selection.size).draw(in: selection)
                 }
@@ -241,7 +245,7 @@ private final class SelectionView: NSView {
             stroke.lineWidth = 1
             NSColor.controlAccentColor.withAlphaComponent(0.8).setStroke()
             stroke.stroke()
-            drawEditingHint()
+            if scrolling == nil { drawEditingHint() }
         } else {
             let stroke = NSBezierPath(rect: selection)
             stroke.lineWidth = 1
@@ -564,8 +568,13 @@ private final class SelectionView: NSView {
         layoutToolbar()
         needsDisplay = true
 
-        guard !scrollCancelled, let image else {
+        guard !scrollCancelled else {
             onCancel?()
+            return
+        }
+        guard let image else {
+            onCancel?()
+            ColorToast.show("No screenshot frame was captured. Please try again.")
             return
         }
 
@@ -573,10 +582,12 @@ private final class SelectionView: NSView {
             cgImage: image,
             size: NSSize(width: image.width, height: image.height)
         )
-        ScreenshotSaver.save(nsImage)
+        let saved = ScreenshotSaver.save(nsImage)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects([nsImage])
-        ColorToast.show("Scrolling screenshot saved to Downloads")
+        ColorToast.show(saved == nil
+            ? "Screenshot copied, but the file could not be saved"
+            : "Scrolling screenshot saved and copied")
         onCancel?()
     }
 
@@ -758,6 +769,9 @@ private final class SelectionView: NSView {
     }
 
     private func teardown() {
+        baseTask?.cancel()
+        scrolling?.cancel()
+        scrolling = nil
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
         }
