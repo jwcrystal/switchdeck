@@ -5,12 +5,13 @@ import SwiftUI
 @MainActor
 final class CaptureSession: ObservableObject {
     enum Tool: String, CaseIterable, Identifiable {
-        case rectangle, ellipse, line, arrow, pen, highlighter, text, number, mosaic, blur
+        case select, rectangle, ellipse, line, arrow, pen, highlighter, text, number, mosaic, blur
 
         var id: String { rawValue }
 
         var symbol: String {
             switch self {
+            case .select: return "cursorarrow"
             case .rectangle: return "rectangle"
             case .ellipse: return "circle"
             case .line: return "line.diagonal"
@@ -26,6 +27,7 @@ final class CaptureSession: ObservableObject {
 
         var help: String {
             switch self {
+            case .select: return "Select and move (⌫ deletes)"
             case .rectangle: return "Rectangle"
             case .ellipse: return "Ellipse"
             case .line: return "Line"
@@ -46,7 +48,15 @@ final class CaptureSession: ObservableObject {
         case pin
     }
 
-    @Published var tool: Tool = .rectangle
+    @Published var tool: Tool = .select {
+        didSet {
+            if tool != .select {
+                selectionIndex = nil
+            }
+        }
+    }
+    @Published var selectionIndex: Int?
+    @Published var toolbarVisible = true
     @Published var color: Color = .red
     @Published var lineWidth: CGFloat = 0.004
     @Published var textScale: CGFloat = 0.022
@@ -107,7 +117,13 @@ struct CaptureToolbarView: View {
         HStack(spacing: 5) {
             ForEach(CaptureSession.Tool.allCases) { tool in
                 Button {
-                    session.tool = tool
+                    // Clicking the active tool again cancels it, so the toolbar
+                    // stays optional: no tool means clicks only select/move.
+                    if session.tool == tool, tool != .select {
+                        session.tool = .select
+                    } else {
+                        session.tool = tool
+                    }
                 } label: {
                     Image(systemName: tool.symbol)
                         .font(.system(size: 12.5, weight: .medium))
@@ -167,6 +183,7 @@ struct CaptureToolbarView: View {
             icon("doc.on.doc", help: "Copy (↩)", action: session.onCopy)
             icon("square.and.arrow.down", help: "Save (Space)", action: session.onSave)
             icon("pin", help: "Pin (P)", action: session.onPin)
+            icon("chevron.down", help: "Hide the toolbar (Tab)") { session.toolbarVisible = false }
             icon("xmark", help: "Close (Esc)", action: session.onClose)
         }
         .padding(.horizontal, 9)
@@ -341,36 +358,26 @@ private struct WatermarkSettingsView: View {
             }
             .pickerStyle(.menu)
 
-            HStack(spacing: 6) {
-                Text("Size")
-                    .frame(width: 54, alignment: .leading)
-                    .foregroundStyle(.secondary)
-                sizeButton(0.014, "S")
-                sizeButton(0.02, "M")
-                sizeButton(0.03, "L")
-            }
+            sliderRow(
+                "Size",
+                value: $session.watermarkScale,
+                range: 0.01...0.06,
+                text: String(format: "%.1f%%", session.watermarkScale * 100)
+            )
 
-            HStack(spacing: 6) {
-                Text("Angle")
-                    .frame(width: 54, alignment: .leading)
-                    .foregroundStyle(.secondary)
-                Slider(value: $session.watermarkRotation, in: -90...90, step: 1)
-                Text("\(Int(session.watermarkRotation))°")
-                    .font(.caption)
-                    .monospacedDigit()
-                    .frame(width: 36, alignment: .trailing)
-            }
+            sliderRow(
+                "Angle",
+                value: $session.watermarkRotation,
+                range: -90...90,
+                text: "\(Int(session.watermarkRotation))°"
+            )
 
-            HStack(spacing: 6) {
-                Text("Opacity")
-                    .frame(width: 54, alignment: .leading)
-                    .foregroundStyle(.secondary)
-                Slider(value: $session.watermarkOpacity, in: 0.15...1)
-                Text("\(Int(session.watermarkOpacity * 100))%")
-                    .font(.caption)
-                    .monospacedDigit()
-                    .frame(width: 36, alignment: .trailing)
-            }
+            sliderRow(
+                "Opacity",
+                value: $session.watermarkOpacity,
+                range: 0.15...1,
+                text: "\(Int(session.watermarkOpacity * 100))%"
+            )
 
             HStack(spacing: 8) {
                 Text("Color")
@@ -398,6 +405,24 @@ private struct WatermarkSettingsView: View {
     }
 
     private static let palette: [Color] = [.white, .black, .red, .yellow, .blue]
+
+    private func sliderRow(
+        _ title: String,
+        value: Binding<CGFloat>,
+        range: ClosedRange<CGFloat>,
+        text: String
+    ) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .frame(width: 54, alignment: .leading)
+                .foregroundStyle(.secondary)
+            Slider(value: value, in: range)
+            Text(text)
+                .font(.caption)
+                .monospacedDigit()
+                .frame(width: 40, alignment: .trailing)
+        }
+    }
 
     private func sizeButton(_ scale: CGFloat, _ title: String) -> some View {
         Button(title) {

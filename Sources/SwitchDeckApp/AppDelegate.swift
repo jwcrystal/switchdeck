@@ -68,6 +68,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        if CommandLine.arguments.contains("--save-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginDemoSave()
+            }
+        }
+
         if CommandLine.arguments.contains("--copy-demo") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 self?.screenshot.beginDemoCopy()

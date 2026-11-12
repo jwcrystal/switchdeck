@@ -47,6 +47,14 @@ final class ScreenshotCoordinator {
         }
     }
 
+    /// Debug: demo selection, saved straight to the configured folder.
+    func beginDemoSave() {
+        beginDemo()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+            self?.selections.completeForDebug(.save)
+        }
+    }
+
     /// Debug: compares a normal capture with one that excludes SwitchDeck while
     /// the overlay is up, to prove the overlay is not baked into the image.
     func compareCaptures() {
@@ -148,13 +156,15 @@ final class ScreenshotCoordinator {
     }
 
     private func save(_ image: NSImage, watermark: AnnotationRenderer.WatermarkOptions?) {
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.png]
-        panel.nameFieldStringValue = "Screenshot \(Self.stamp()).png"
-        panel.directoryURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
-        panel.canCreateDirectories = true
+        let folder = ScreenshotStorage.folder
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        } catch {
+            present(error)
+            return
+        }
 
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let url = folder.appendingPathComponent(ScreenshotStorage.fileName())
 
         // A watermark that is hidden still lives on in the file metadata.
         if let watermark,
@@ -256,6 +266,30 @@ final class ScreenshotCoordinator {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
         return formatter.string(from: Date())
+    }
+}
+
+/// Where saves go. Defaults to ~/Downloads with a project prefix; both can be
+/// overridden later from Settings via these two UserDefaults keys.
+private enum ScreenshotStorage {
+    static var folder: URL {
+        if let path = UserDefaults.standard.string(forKey: "ScreenshotFolder"), !path.isEmpty {
+            return URL(fileURLWithPath: path, isDirectory: true)
+        }
+        return FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads")
+    }
+
+    static var prefix: String {
+        let stored = UserDefaults.standard.string(forKey: "ScreenshotFilenamePrefix") ?? "SwitchDeck"
+        return stored.trimmingCharacters(in: .whitespaces)
+    }
+
+    static func fileName() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
+        let base = "Screenshot \(formatter.string(from: Date())).png"
+        return prefix.isEmpty ? base : "\(prefix) \(base)"
     }
 }
 

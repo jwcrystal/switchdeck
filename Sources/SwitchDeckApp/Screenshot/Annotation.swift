@@ -38,6 +38,85 @@ struct Annotation {
     var arrowStyle: ArrowStyle = .straight
 
     static let palette: [Color] = [.red, .yellow, .blue, .white, .black]
+
+    /// Normalised bounding box, used for selection and hit testing.
+    var bounds: CGRect {
+        switch shape {
+        case .rectangle(let a, let b),
+             .ellipse(let a, let b),
+             .line(let a, let b),
+             .arrow(let a, let b),
+             .mosaic(let a, let b),
+             .blur(let a, let b):
+            return CGRect(
+                x: min(a.x, b.x), y: min(a.y, b.y),
+                width: abs(b.x - a.x), height: abs(b.y - a.y)
+            )
+        case .pen(let points), .highlighter(let points):
+            guard let first = points.first else { return .zero }
+            var rect = CGRect(origin: first, size: .zero)
+            for point in points.dropFirst() {
+                rect = rect.union(CGRect(origin: point, size: .zero))
+            }
+            return rect
+        case .number(_, let at), .text(_, let at):
+            return CGRect(x: at.x, y: at.y, width: 0.12, height: 0.04)
+        }
+    }
+
+    func contains(_ point: CGPoint, tolerance: CGFloat = 0.012) -> Bool {
+        let box = bounds.insetBy(dx: -tolerance, dy: -tolerance)
+        return box.contains(point)
+    }
+
+    func moved(by delta: CGPoint) -> Annotation {
+        func p(_ point: CGPoint) -> CGPoint {
+            CGPoint(x: point.x + delta.x, y: point.y + delta.y)
+        }
+
+        var copy = self
+        switch shape {
+        case .rectangle(let a, let b): copy.shape = .rectangle(from: p(a), to: p(b))
+        case .ellipse(let a, let b): copy.shape = .ellipse(from: p(a), to: p(b))
+        case .line(let a, let b): copy.shape = .line(from: p(a), to: p(b))
+        case .arrow(let a, let b): copy.shape = .arrow(from: p(a), to: p(b))
+        case .mosaic(let a, let b): copy.shape = .mosaic(from: p(a), to: p(b))
+        case .blur(let a, let b): copy.shape = .blur(from: p(a), to: p(b))
+        case .pen(let points): copy.shape = .pen(points: points.map(p))
+        case .highlighter(let points): copy.shape = .highlighter(points: points.map(p))
+        case .number(let value, let at): copy.shape = .number(value, at: p(at))
+        case .text(let text, let at): copy.shape = .text(text, at: p(at))
+        }
+        return copy
+    }
+
+    /// Scales the annotation so its original box fills `target`.
+    func scaled(from original: CGRect, to target: CGRect) -> Annotation {
+        let scaleX = original.width > 0 ? target.width / original.width : 1
+        let scaleY = original.height > 0 ? target.height / original.height : 1
+
+        func p(_ point: CGPoint) -> CGPoint {
+            CGPoint(
+                x: target.minX + (point.x - original.minX) * scaleX,
+                y: target.minY + (point.y - original.minY) * scaleY
+            )
+        }
+
+        var copy = self
+        switch shape {
+        case .rectangle(let a, let b): copy.shape = .rectangle(from: p(a), to: p(b))
+        case .ellipse(let a, let b): copy.shape = .ellipse(from: p(a), to: p(b))
+        case .line(let a, let b): copy.shape = .line(from: p(a), to: p(b))
+        case .arrow(let a, let b): copy.shape = .arrow(from: p(a), to: p(b))
+        case .mosaic(let a, let b): copy.shape = .mosaic(from: p(a), to: p(b))
+        case .blur(let a, let b): copy.shape = .blur(from: p(a), to: p(b))
+        case .pen(let points): copy.shape = .pen(points: points.map(p))
+        case .highlighter(let points): copy.shape = .highlighter(points: points.map(p))
+        case .number(let value, let at): copy.shape = .number(value, at: p(at))
+        case .text(let text, let at): copy.shape = .text(text, at: p(at))
+        }
+        return copy
+    }
 }
 
 enum AnnotationRenderer {

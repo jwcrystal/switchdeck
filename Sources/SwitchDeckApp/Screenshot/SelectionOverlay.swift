@@ -115,6 +115,8 @@ private final class SelectionView: NSView {
         case moving(start: CGPoint, rect: CGRect)
         case resizing(handle: Handle, rect: CGRect)
         case drawing
+        case movingAnnotation(start: CGPoint, index: Int, original: Annotation)
+        case resizingAnnotation(handle: Handle, index: Int, original: Annotation, rect: CGRect)
 
         var isIdle: Bool {
             if case .none = self { return true }
@@ -141,6 +143,7 @@ private final class SelectionView: NSView {
     private var penPoints: [CGPoint] = []
 
     private var toolbarHost: NSHostingView<CaptureToolbarView>?
+    private var toolsButton: NSButton?
     private var textField: NSTextField?
     private var textAnchor: CGPoint = .zero
     private var keyMonitor: Any?
@@ -200,6 +203,7 @@ private final class SelectionView: NSView {
             if let options = session.watermarkOptions, !session.watermarkHidden {
                 AnnotationRenderer.drawWatermark(options, in: selection)
             }
+            drawAnnotationSelection(in: selection)
             let stroke = NSBezierPath(rect: selection)
             stroke.lineWidth = 1
             NSColor.controlAccentColor.withAlphaComponent(0.8).setStroke()
@@ -223,6 +227,29 @@ private final class SelectionView: NSView {
         }
         if let draft {
             AnnotationRenderer.draw(draft, in: rect, base: baseImage)
+        }
+    }
+
+    private func drawAnnotationSelection(in selection: CGRect) {
+        guard session.tool == .select,
+              let index = session.selectionIndex,
+              session.annotations.indices.contains(index)
+        else { return }
+
+        let rect = viewRect(for: session.annotations[index].bounds, in: selection)
+        let path = NSBezierPath(rect: rect)
+        path.lineWidth = 1
+        path.setLineDash([4, 3], count: 2, phase: 0)
+        NSColor.controlAccentColor.setStroke()
+        path.stroke()
+
+        for box in handleRects(for: rect).values {
+            NSColor.white.setFill()
+            NSColor.controlAccentColor.setStroke()
+            let handle = NSBezierPath(roundedRect: box, xRadius: 2, yRadius: 2)
+            handle.lineWidth = 1.5
+            handle.fill()
+            handle.stroke()
         }
     }
 
@@ -292,7 +319,7 @@ private final class SelectionView: NSView {
 
     private func drawEditingHint() {
         guard let toolbarHost else { return }
-        let text = "↩ Copy · Space Save · P Pin · ⌘Z Undo · Esc Close"
+        let text = "↩ Copy · Space Save · P Pin · Tab Tools · ⌘Z Undo · Esc Close"
         let string = NSAttributedString(
             string: text,
             attributes: [
@@ -355,7 +382,10 @@ private final class SelectionView: NSView {
         installToolbar()
         installKeyMonitor()
         sessionCancellable = session.objectWillChange.sink { [weak self] _ in
-            DispatchQueue.main.async { self?.needsDisplay = true }
+            DispatchQueue.main.async {
+                self?.layoutToolbar()
+                self?.needsDisplay = true
+            }
         }
         loadBase()
         needsDisplay = true
@@ -403,12 +433,27 @@ private final class SelectionView: NSView {
             case 35: // P
                 self.finish(.pin)
                 return nil
+            case 48: // Tab
+                self.session.toolbarVisible.toggle()
+                self.layoutToolbar()
+                return nil
             case 6 where event.modifierFlags.contains(.command): // ⌘Z
                 if !self.session.annotations.isEmpty {
                     self.session.annotations.removeLast()
+                    self.session.selectionIndex = nil
                     self.needsDisplay = true
                 }
                 return nil
+            case 51, 117: // Delete
+                if self.session.tool == .select,
+                   let index = self.session.selectionIndex,
+                   self.session.annotations.indices.contains(index) {
+                    self.session.annotations.remove(at: index)
+                    self.session.selectionIndex = nil
+                    self.needsDisplay = true
+                    return nil
+                }
+                return event
             default:
                 return event
             }
@@ -423,6 +468,8 @@ private final class SelectionView: NSView {
         sessionCancellable?.cancel()
         sessionCancellable = nil
         removeToolbar()
+        toolsButton?.removeFromSuperview()
+        toolsButton = nil
         removeTextField()
     }
 
@@ -454,6 +501,19 @@ private final class SelectionView: NSView {
         host.frame.size = host.fittingSize
         addSubview(host)
         toolbarHost = host
+
+        let button = NSButton(title: "Tools", target: self, action: #selector(showTools))
+        button.bezelStyle = .rounded
+        button.controlSize = .small
+        button.isHidden = true
+        addSubview(button)
+        toolsButton = button
+
+        layoutToolbar()
+    }
+
+    @objc private func showTools() {
+        session.toolbarVisible = true
         layoutToolbar()
     }
 
@@ -471,6 +531,18 @@ private final class SelectionView: NSView {
         }
 
         toolbarHost.frame = NSRect(x: x, y: y, width: size.width, height: size.height)
+        toolbarHost.isHidden = !session.toolbarVisible
+
+        if let toolsButton {
+            toolsButton.isHidden = session.toolbarVisible
+            let buttonSize = toolsButton.fittingSize
+            toolsButton.frame = NSRect(
+                x: selection.midX - buttonSize.width / 2,
+                y: y,
+                width: buttonSize.width,
+                height: buttonSize.height
+            )
+        }
     }
 
     private func removeToolbar() {
@@ -502,6 +574,10 @@ private final class SelectionView: NSView {
                 return
             }
             if let selection, selection.contains(point) {
+                if session.tool == .select {
+                    beginSelectionInteraction(at: point, in: selection)
+                    return
+                }
                 interaction = .drawing
                 startPoint = normalize(point, in: selection)
                 penPoints = []
@@ -550,6 +626,21 @@ private final class SelectionView: NSView {
             guard let selection, let start = startPoint else { return }
             let current = normalize(point, in: selection)
             updateDraft(from: start, to: current)
+
+        case .movingAnnotation(let start, let index, let original):
+            guard let selection, session.annotations.indices.contains(index) else { return }
+            let delta = CGPoint(
+                x: (point.x - start.x) / selection.width,
+                y: -(point.y - start.y) / selection.height
+            )
+            session.annotations[index] = original.moved(by: delta)
+
+        case .resizingAnnotation(let handle, let index, let original, let rect):
+            guard let selection, session.annotations.indices.contains(index) else { return }
+            let newViewRect = resized(rect, handle: handle, to: point)
+            let newBounds = normalizedRect(newViewRect, in: selection)
+            guard newBounds.width > 0.005, newBounds.height > 0.005 else { return }
+            session.annotations[index] = original.scaled(from: original.bounds, to: newBounds)
 
         case .none:
             break
@@ -743,6 +834,62 @@ private final class SelectionView: NSView {
     }
 
     // MARK: - Geometry
+
+    private func beginSelectionInteraction(at point: CGPoint, in selection: CGRect) {
+        let normalized = normalize(point, in: selection)
+
+        if let index = session.selectionIndex, session.annotations.indices.contains(index) {
+            let rect = viewRect(for: session.annotations[index].bounds, in: selection)
+            if let handle = handle(at: point, in: rect) {
+                interaction = .resizingAnnotation(
+                    handle: handle,
+                    index: index,
+                    original: session.annotations[index],
+                    rect: rect
+                )
+                return
+            }
+        }
+
+        if let index = annotationIndex(at: normalized) {
+            session.selectionIndex = index
+            interaction = .movingAnnotation(
+                start: normalized,
+                index: index,
+                original: session.annotations[index]
+            )
+            needsDisplay = true
+            return
+        }
+
+        session.selectionIndex = nil
+        needsDisplay = true
+    }
+
+    private func annotationIndex(at point: CGPoint) -> Int? {
+        for index in session.annotations.indices.reversed() where session.annotations[index].contains(point) {
+            return index
+        }
+        return nil
+    }
+
+    private func viewRect(for bounds: CGRect, in selection: CGRect) -> CGRect {
+        CGRect(
+            x: selection.minX + bounds.minX * selection.width,
+            y: selection.maxY - bounds.maxY * selection.height,
+            width: bounds.width * selection.width,
+            height: bounds.height * selection.height
+        )
+    }
+
+    private func normalizedRect(_ rect: CGRect, in selection: CGRect) -> CGRect {
+        CGRect(
+            x: (rect.minX - selection.minX) / max(1, selection.width),
+            y: (selection.maxY - rect.maxY) / max(1, selection.height),
+            width: rect.width / max(1, selection.width),
+            height: rect.height / max(1, selection.height)
+        )
+    }
 
     private func normalize(_ point: CGPoint, in rect: CGRect) -> CGPoint {
         CGPoint(
