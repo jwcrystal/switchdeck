@@ -1,43 +1,71 @@
 import AppKit
+import SwiftUI
 
-enum CaptureRequest {
-    case region(rect: CGRect, screen: NSScreen)
-    case window(id: CGWindowID)
-}
-
-/// Dims every display, lets the user shape a region with handles, then turns
-/// Enter (or a double click) into a capture request.
+/// In-place screenshot editing, HapiGo style: the selection stays on screen,
+/// everything outside it dims, and the toolbar appears right under the region.
+/// Nothing is captured until the user copies, saves or pins.
 @MainActor
 final class SelectionController {
     private var windows: [SelectionWindow] = []
-    private var requestHandler: ((CaptureRequest) -> Void)?
+    private var captureHandler: ((CGRect, NSScreen, [Annotation], CaptureSession.Output) -> Void)?
     private var cancelHandler: (() -> Void)?
 
+    let session = CaptureSession()
     private(set) var isActive = false
 
     func begin(
-        onSelect: @escaping (CaptureRequest) -> Void,
-        onCancel: @escaping () -> Void
+        onCapture: @escaping (CGRect, NSScreen, [Annotation], CaptureSession.Output) -> Void,
+        onCancel: @escaping () -> Void,
+        initialSelection: CGRect? = nil
     ) {
         guard !isActive else { return }
         isActive = true
-        requestHandler = onSelect
+        captureHandler = onCapture
         cancelHandler = onCancel
+        session.annotations = []
 
         for screen in NSScreen.screens {
             let window = SelectionWindow(screen: screen)
-            let view = SelectionView(screen: screen)
-            view.onSelect = { [weak self] request in self?.finish(request) }
-            view.onCancel = { [weak self] in self?.finish(nil) }
+            let view = SelectionView(screen: screen, session: session)
+            view.onCapture = { [weak self] rect, screen, annotations, output in
+                self?.finish(rect: rect, screen: screen, annotations: annotations, output: output)
+            }
+            view.onCancel = { [weak self] in
+                self?.finish(rect: nil, screen: nil, annotations: [], output: .copy)
+            }
             window.contentView = view
             window.makeKeyAndOrderFront(nil)
             windows.append(window)
+
+            if let initialSelection {
+                let local = initialSelection.offsetBy(
+                    dx: -screen.frame.minX,
+                    dy: -screen.frame.minY
+                )
+                if local.intersects(NSRect(origin: .zero, size: screen.frame.size)) {
+                    view.presetSelection(local)
+                }
+            }
         }
 
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func finish(_ request: CaptureRequest?) {
+    /// Debug helper: completes the current selection as if Enter was pressed.
+    func completeForDebug(_ output: CaptureSession.Output = .copy) {
+        for window in windows {
+            guard let view = window.contentView as? SelectionView, view.hasSelectionForDebug else { continue }
+            view.finishForDebug(output)
+            return
+        }
+    }
+
+    private func finish(
+        rect: CGRect?,
+        screen: NSScreen?,
+        annotations: [Annotation],
+        output: CaptureSession.Output
+    ) {
         guard isActive else { return }
         isActive = false
 
@@ -46,12 +74,12 @@ final class SelectionController {
         }
         windows.removeAll()
 
-        if let request {
-            requestHandler?(request)
+        if let rect, let screen {
+            captureHandler?(rect, screen, annotations, output)
         } else {
             cancelHandler?()
         }
-        requestHandler = nil
+        captureHandler = nil
         cancelHandler = nil
     }
 }
@@ -88,6 +116,7 @@ private final class SelectionView: NSView {
         case creating(start: CGPoint)
         case moving(start: CGPoint, rect: CGRect)
         case resizing(handle: Handle, rect: CGRect)
+        case drawing
 
         var isIdle: Bool {
             if case .none = self { return true }
@@ -96,15 +125,28 @@ private final class SelectionView: NSView {
     }
 
     let screen: NSScreen
-    var onSelect: ((CaptureRequest) -> Void)?
+    let session: CaptureSession
+
+    var onCapture: ((CGRect, NSScreen, [Annotation], CaptureSession.Output) -> Void)?
     var onCancel: (() -> Void)?
 
     private var selection: CGRect?
     private var interaction: Interaction = .none
     private var hovered: (id: CGWindowID, rect: CGRect)?
+    private var editing = false
 
-    init(screen: NSScreen) {
+    private var startPoint: CGPoint?
+    private var draft: Annotation?
+    private var penPoints: [CGPoint] = []
+
+    private var toolbarHost: NSHostingView<CaptureToolbarView>?
+    private var textField: NSTextField?
+    private var textAnchor: CGPoint = .zero
+    private var keyMonitor: Any?
+
+    init(screen: NSScreen, session: CaptureSession) {
         self.screen = screen
+        self.session = session
         super.init(frame: NSRect(origin: .zero, size: screen.frame.size))
         wantsLayer = true
     }
@@ -139,10 +181,21 @@ private final class SelectionView: NSView {
             path.append(NSBezierPath(rect: selection))
             path.windingRule = .evenOdd
         }
-        NSColor.black.withAlphaComponent(0.32).setFill()
+        NSColor.black.withAlphaComponent(editing ? 0.42 : 0.32).setFill()
         path.fill()
 
-        if let selection, selection.width > 1, selection.height > 1 {
+        guard let selection else {
+            drawHint("Drag to select · click a window · F for the whole screen · R for last region")
+            return
+        }
+
+        if editing {
+            drawAnnotations(in: selection)
+            let stroke = NSBezierPath(rect: selection)
+            stroke.lineWidth = 1
+            NSColor.controlAccentColor.withAlphaComponent(0.8).setStroke()
+            stroke.stroke()
+        } else {
             let stroke = NSBezierPath(rect: selection)
             stroke.lineWidth = 1
             NSColor.controlAccentColor.setStroke()
@@ -150,16 +203,16 @@ private final class SelectionView: NSView {
 
             drawHandles(for: selection)
             drawLabel(sizeText(for: selection), above: selection)
-            drawHint("Enter to edit · drag a handle to adjust · Esc to clear")
-        } else if let hovered, interaction.isIdle {
-            let stroke = NSBezierPath(rect: hovered.rect)
-            stroke.lineWidth = 1
-            stroke.setLineDash([5, 4], count: 2, phase: 0)
-            NSColor.controlAccentColor.setStroke()
-            stroke.stroke()
-            drawHint("Drag to select · click a window · F for the whole screen · R for last region")
-        } else {
-            drawHint("Drag to select · click a window · F for the whole screen · R for last region")
+            drawHint("Enter or drag to edit · R reuses the last region · Esc cancels")
+        }
+    }
+
+    private func drawAnnotations(in rect: CGRect) {
+        for annotation in session.annotations {
+            AnnotationRenderer.draw(annotation, in: rect, base: nil)
+        }
+        if let draft {
+            AnnotationRenderer.draw(draft, in: rect, base: nil)
         }
     }
 
@@ -212,10 +265,7 @@ private final class SelectionView: NSView {
             ]
         )
         let size = string.size()
-        let origin = NSPoint(
-            x: bounds.midX - size.width / 2,
-            y: bounds.minY + 42
-        )
+        let origin = NSPoint(x: bounds.midX - size.width / 2, y: bounds.minY + 42)
         NSColor.black.withAlphaComponent(0.55).setFill()
         NSBezierPath(
             roundedRect: NSRect(
@@ -235,6 +285,123 @@ private final class SelectionView: NSView {
         return "\(Int(rect.width * scale)) × \(Int(rect.height * scale))"
     }
 
+    // MARK: - Editing lifecycle
+
+    var hasSelectionForDebug: Bool { selection != nil }
+
+    func finishForDebug(_ output: CaptureSession.Output) {
+        finish(output)
+    }
+
+    func presetSelection(_ rect: CGRect) {
+        selection = clamp(rect)
+        startEditing()
+    }
+
+    private func startEditing() {
+        guard selection != nil, !editing else { return }
+        editing = true
+        session.annotations = []
+        session.onUndo = { [weak self] in
+            guard let self, !self.session.annotations.isEmpty else { return }
+            self.session.annotations.removeLast()
+            self.needsDisplay = true
+        }
+        session.onCopy = { [weak self] in self?.finish(.copy) }
+        session.onSave = { [weak self] in self?.finish(.save) }
+        session.onPin = { [weak self] in self?.finish(.pin) }
+        session.onClose = { [weak self] in self?.onCancel?() }
+
+        installToolbar()
+        installKeyMonitor()
+        needsDisplay = true
+    }
+
+    /// Enter/Space/P work even when the toolbar has focus, because the local
+    /// monitor sees the keys before SwiftUI does.
+    private func installKeyMonitor() {
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.editing, self.window?.isKeyWindow == true else { return event }
+            if self.window?.firstResponder is NSTextView { return event }
+
+            switch event.keyCode {
+            case 53: // Esc
+                self.onCancel?()
+                return nil
+            case 36, 76: // Return
+                self.finish(.copy)
+                return nil
+            case 49: // Space
+                self.finish(.save)
+                return nil
+            case 35: // P
+                self.finish(.pin)
+                return nil
+            case 6 where event.modifierFlags.contains(.command): // ⌘Z
+                if !self.session.annotations.isEmpty {
+                    self.session.annotations.removeLast()
+                    self.needsDisplay = true
+                }
+                return nil
+            default:
+                return event
+            }
+        }
+    }
+
+    private func teardown() {
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+        }
+        keyMonitor = nil
+        removeToolbar()
+        removeTextField()
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if newWindow == nil {
+            teardown()
+        }
+    }
+
+    private func finish(_ output: CaptureSession.Output) {
+        guard let selection else { return }
+        let global = selection.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
+        teardown()
+        onCapture?(global, screen, session.annotations, output)
+    }
+
+    private func installToolbar() {
+        guard toolbarHost == nil else { return }
+        let host = NSHostingView(rootView: CaptureToolbarView(session: session))
+        host.frame.size = host.fittingSize
+        addSubview(host)
+        toolbarHost = host
+        layoutToolbar()
+    }
+
+    private func layoutToolbar() {
+        guard let toolbarHost, let selection else { return }
+        let size = toolbarHost.fittingSize
+        let gap: CGFloat = 10
+
+        var x = selection.midX - size.width / 2
+        x = min(max(8, x), bounds.width - size.width - 8)
+
+        var y = selection.minY - size.height - gap
+        if y < 8 {
+            y = min(bounds.height - size.height - 8, selection.maxY + gap)
+        }
+
+        toolbarHost.frame = NSRect(x: x, y: y, width: size.width, height: size.height)
+    }
+
+    private func removeToolbar() {
+        toolbarHost?.removeFromSuperview()
+        toolbarHost = nil
+    }
+
     // MARK: - Mouse
 
     override func mouseEntered(with event: NSEvent) {
@@ -252,8 +419,21 @@ private final class SelectionView: NSView {
         window?.makeFirstResponder(self)
         let point = convert(event.locationInWindow, from: nil)
 
-        if event.clickCount == 2, let selection, selection.contains(point) {
-            confirm()
+        if editing {
+            if let selection, let handle = handle(at: point, in: selection) {
+                interaction = .resizing(handle: handle, rect: selection)
+                return
+            }
+            if let selection, selection.contains(point) {
+                interaction = .drawing
+                startPoint = normalize(point, in: selection)
+                penPoints = []
+                if session.tool == .text {
+                    showTextField(at: point)
+                    interaction = .none
+                }
+                return
+            }
             return
         }
 
@@ -278,14 +458,21 @@ private final class SelectionView: NSView {
 
         switch interaction {
         case .creating(let start):
-            selection = rect(from: start, to: point)
+            selection = clamp(rect(from: start, to: point))
 
         case .moving(let start, let rect):
             let offset = CGPoint(x: point.x - start.x, y: point.y - start.y)
             selection = clamp(rect.offsetBy(dx: offset.x, dy: offset.y))
+            layoutToolbar()
 
         case .resizing(let handle, let rect):
             selection = clamp(resized(rect, handle: handle, to: point))
+            layoutToolbar()
+
+        case .drawing:
+            guard let selection, let start = startPoint else { return }
+            let current = normalize(point, in: selection)
+            updateDraft(from: start, to: current)
 
         case .none:
             break
@@ -296,48 +483,166 @@ private final class SelectionView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        let wasCreating: Bool
-        if case .creating = interaction { wasCreating = true } else { wasCreating = false }
+        let previous = interaction
         interaction = .none
-
         defer { needsDisplay = true }
 
-        if wasCreating, let selection, selection.width >= 4, selection.height >= 4 {
-            // Release goes straight into the editor at the selection; no extra
-            // confirm step. Enter stays available for a restored selection.
-            confirm()
-            return
-        }
-
-        if wasCreating {
-            self.selection = nil
-
-            if let hovered = windowUnderMouse(point) {
-                onSelect?(.window(id: hovered.id))
+        switch previous {
+        case .creating:
+            if let selection, selection.width >= 4, selection.height >= 4 {
+                startEditing()
             } else {
-                onCancel?()
+                self.selection = nil
+                if let hovered = windowUnderMouse(point) {
+                    selection = hovered.rect
+                    startEditing()
+                } else {
+                    onCancel?()
+                }
             }
+
+        case .drawing:
+            guard let selection, let start = startPoint else { return }
+            let end = normalize(point, in: selection)
+
+            switch session.tool {
+            case .text:
+                break
+            case .number:
+                if hypot(end.x - start.x, end.y - start.y) * selection.width < 4 {
+                    commit(.number(nextNumber, at: end))
+                }
+            case .pen, .highlighter:
+                commit(session.tool == .pen ? .pen(points: penPoints) : .highlighter(points: penPoints))
+            default:
+                commit(draftShape(from: start, to: end))
+            }
+            draft = nil
+            penPoints = []
+
+        default:
+            break
         }
     }
 
+    private func updateDraft(from start: CGPoint, to current: CGPoint) {
+        switch session.tool {
+        case .pen, .highlighter:
+            penPoints.append(current)
+            draft = Annotation(
+                shape: session.tool == .pen ? .pen(points: penPoints) : .highlighter(points: penPoints),
+                color: session.color,
+                lineWidth: session.lineWidth
+            )
+        case .text, .number:
+            break
+        default:
+            draft = Annotation(
+                shape: draftShape(from: start, to: current),
+                color: session.color,
+                lineWidth: session.lineWidth
+            )
+        }
+    }
+
+    private func draftShape(from start: CGPoint, to end: CGPoint) -> Annotation.Shape {
+        switch session.tool {
+        case .rectangle: return .rectangle(from: start, to: end)
+        case .ellipse: return .ellipse(from: start, to: end)
+        case .line: return .line(from: start, to: end)
+        case .mosaic: return .mosaic(from: start, to: end)
+        case .blur: return .blur(from: start, to: end)
+        default: return .arrow(from: start, to: end)
+        }
+    }
+
+    private var nextNumber: Int {
+        session.annotations.reduce(1) { count, annotation in
+            if case .number = annotation.shape { return count + 1 }
+            return count
+        }
+    }
+
+    private func commit(_ shape: Annotation.Shape) {
+        session.annotations.append(Annotation(
+            shape: shape,
+            color: session.color,
+            lineWidth: session.lineWidth,
+            textScale: session.textScale,
+            textBubble: session.textBubble,
+            arrowStyle: session.arrowStyle
+        ))
+    }
+
+    // MARK: - Text entry
+
+    private func showTextField(at point: CGPoint) {
+        removeTextField()
+        textAnchor = point
+
+        let field = NSTextField(frame: NSRect(x: point.x, y: point.y - 12, width: 200, height: 24))
+        field.placeholderString = "Text"
+        field.font = .systemFont(ofSize: 13)
+        field.target = self
+        field.action = #selector(commitText)
+        addSubview(field)
+        textField = field
+        window?.makeFirstResponder(field)
+    }
+
+    @objc private func commitText() {
+        guard let field = textField, let selection else { return }
+        let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty {
+            commit(.text(text, at: normalize(textAnchor, in: selection)))
+        }
+        removeTextField()
+        needsDisplay = true
+    }
+
+    private func removeTextField() {
+        textField?.removeFromSuperview()
+        textField = nil
+    }
+
+    // MARK: - Keyboard
+
     override func keyDown(with event: NSEvent) {
+        if editing {
+            switch event.keyCode {
+            case 53: onCancel?()                                  // Esc
+            case 36, 76: finish(.copy)                            // Return
+            case 49: finish(.save)                                // Space
+            case 35: finish(.pin)                                 // P
+            case 6 where event.modifierFlags.contains(.command):  // ⌘Z
+                if !session.annotations.isEmpty {
+                    session.annotations.removeLast()
+                    needsDisplay = true
+                }
+            default: break
+            }
+            return
+        }
+
         switch event.keyCode {
-        case 53: // Esc: clear the selection first, then leave.
+        case 53:
             if selection != nil {
                 selection = nil
                 needsDisplay = true
             } else {
                 onCancel?()
             }
-        case 36, 76: // Return / keypad Enter
+        case 36, 76:
             if selection != nil {
-                confirm()
+                startEditing()
             } else {
-                onSelect?(.region(rect: screen.frame, screen: screen))
+                selection = bounds
+                startEditing()
             }
-        case 3: // F: whole screen
-            onSelect?(.region(rect: screen.frame, screen: screen))
-        case 15: // R: reuse the last region
+        case 3:
+            selection = bounds
+            startEditing()
+        case 15:
             if let last = SelectionMemory.lastSelection {
                 selection = clamp(last.offsetBy(dx: -screen.frame.minX, dy: -screen.frame.minY))
                 needsDisplay = true
@@ -349,11 +654,11 @@ private final class SelectionView: NSView {
 
     // MARK: - Geometry
 
-    private func confirm() {
-        guard let selection, selection.width > 4, selection.height > 4 else { return }
-        let global = selection.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
-        SelectionMemory.save(global)
-        onSelect?(.region(rect: global, screen: screen))
+    private func normalize(_ point: CGPoint, in rect: CGRect) -> CGPoint {
+        CGPoint(
+            x: min(1, max(0, (point.x - rect.minX) / max(1, rect.width))),
+            y: min(1, max(0, (rect.maxY - point.y) / max(1, rect.height)))
+        )
     }
 
     private func rect(from a: CGPoint, to b: CGPoint) -> CGRect {
@@ -388,8 +693,7 @@ private final class SelectionView: NSView {
 
     private func handle(at point: CGPoint, in rect: CGRect) -> Handle? {
         for (handle, box) in handleRects(for: rect) {
-            let hit = box.insetBy(dx: -4, dy: -4)
-            if hit.contains(point) { return handle }
+            if box.insetBy(dx: -4, dy: -4).contains(point) { return handle }
         }
         return nil
     }
@@ -412,22 +716,17 @@ private final class SelectionView: NSView {
         }
 
         return CGRect(
-            x: min(minX, maxX),
-            y: min(minY, maxY),
-            width: abs(maxX - minX),
-            height: abs(maxY - minY)
+            x: min(minX, maxX), y: min(minY, maxY),
+            width: abs(maxX - minX), height: abs(maxY - minY)
         )
     }
 
     private func updateHover(at point: CGPoint) {
-        guard selection == nil, interaction.isIdle else { return }
+        guard !editing, selection == nil, interaction.isIdle else { return }
         hovered = windowUnderMouse(point)
         needsDisplay = true
     }
 
-    /// CGWindow bounds use the primary display's top-left as origin. The primary
-    /// display is the one at (0,0), not necessarily the tallest screen — using
-    /// `maxY` here broke window picking on multi-display setups.
     private var primaryHeight: CGFloat {
         if let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero }) {
             return primary.frame.height
@@ -435,18 +734,13 @@ private final class SelectionView: NSView {
         return NSScreen.main?.frame.height ?? NSScreen.screens.first?.frame.height ?? 0
     }
 
-    /// Finds the frontmost normal window under a point, in this view's space.
     private func windowUnderMouse(_ point: CGPoint) -> (id: CGWindowID, rect: CGRect)? {
-        let global = CGPoint(
-            x: point.x + screen.frame.minX,
-            y: point.y + screen.frame.minY
-        )
+        let global = CGPoint(x: point.x + screen.frame.minX, y: point.y + screen.frame.minY)
         let mainHeight = primaryHeight
         let topLeftPoint = CGPoint(x: global.x, y: mainHeight - global.y)
         let ownPID = ProcessInfo.processInfo.processIdentifier
 
-        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
-        let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
 
         for info in list {
             guard let pid = info[kCGWindowOwnerPID as String] as? pid_t, pid != ownPID else { continue }
@@ -462,8 +756,7 @@ private final class SelectionView: NSView {
                 width: rect.width,
                 height: rect.height
             )
-            let id = info[kCGWindowNumber as String] as? CGWindowID ?? 0
-            return (id, local)
+            return (info[kCGWindowNumber as String] as? CGWindowID ?? 0, local)
         }
         return nil
     }

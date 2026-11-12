@@ -1,0 +1,230 @@
+import SwiftUI
+
+/// State for the in-place capture editor: the toolbar that sits under the
+/// selection, plus the annotations drawn on it.
+@MainActor
+final class CaptureSession: ObservableObject {
+    enum Tool: String, CaseIterable, Identifiable {
+        case rectangle, ellipse, line, arrow, pen, highlighter, text, number, mosaic, blur
+
+        var id: String { rawValue }
+
+        var symbol: String {
+            switch self {
+            case .rectangle: return "rectangle"
+            case .ellipse: return "circle"
+            case .line: return "line.diagonal"
+            case .arrow: return "arrow.up.right"
+            case .pen: return "pencil.tip"
+            case .highlighter: return "highlighter"
+            case .text: return "textformat"
+            case .number: return "number.circle"
+            case .mosaic: return "square.grid.3x3"
+            case .blur: return "aqi.medium"
+            }
+        }
+
+        var help: String {
+            switch self {
+            case .rectangle: return "Rectangle"
+            case .ellipse: return "Ellipse"
+            case .line: return "Line"
+            case .arrow: return "Arrow"
+            case .pen: return "Freehand"
+            case .highlighter: return "Highlighter"
+            case .text: return "Text"
+            case .number: return "Number"
+            case .mosaic: return "Mosaic"
+            case .blur: return "Blur"
+            }
+        }
+    }
+
+    enum Output {
+        case copy
+        case save
+        case pin
+    }
+
+    @Published var tool: Tool = .rectangle
+    @Published var color: Color = .red
+    @Published var lineWidth: CGFloat = 0.004
+    @Published var textScale: CGFloat = 0.022
+    @Published var textBubble = false
+    @Published var arrowStyle: ArrowStyle = .straight
+    @Published var annotations: [Annotation] = []
+
+    var onUndo: () -> Void = {}
+    var onCopy: () -> Void = {}
+    var onSave: () -> Void = {}
+    var onPin: () -> Void = {}
+    var onClose: () -> Void = {}
+
+    var canUndo: Bool { !annotations.isEmpty }
+}
+
+struct CaptureToolbarView: View {
+    @ObservedObject var session: CaptureSession
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(CaptureSession.Tool.allCases) { tool in
+                Button {
+                    session.tool = tool
+                } label: {
+                    Image(systemName: tool.symbol)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .frame(width: 26, height: 26)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(session.tool == tool ? Color.accentColor.opacity(0.14) : .clear)
+                        )
+                        .foregroundStyle(session.tool == tool ? Color.accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help(tool.help)
+            }
+
+            Divider().frame(height: 18)
+
+            ForEach(Annotation.palette, id: \.self) { color in
+                Circle()
+                    .fill(color)
+                    .frame(width: 12, height: 12)
+                    .overlay {
+                        Circle().strokeBorder(
+                            Color.primary.opacity(session.color == color ? 0.55 : 0.12),
+                            lineWidth: 2
+                        )
+                    }
+                    .padding(2)
+                    .contentShape(Circle())
+                    .onTapGesture { session.color = color }
+            }
+
+            Divider().frame(height: 18)
+
+            thickness(0.003, width: 1.4)
+            thickness(0.006, width: 3.0)
+
+            if session.tool == .text {
+                Divider().frame(height: 18)
+                textSizeButton
+                bubbleButton
+            }
+
+            if session.tool == .arrow {
+                Divider().frame(height: 18)
+                arrowStyleButton(.straight, symbol: "arrow.right")
+                arrowStyleButton(.curved, symbol: "arrow.up.right")
+                arrowStyleButton(.elbow, symbol: "arrow.turn.right.down")
+            }
+
+            Divider().frame(height: 18)
+
+            icon("arrow.uturn.backward", help: "Undo (⌘Z)", enabled: session.canUndo, action: session.onUndo)
+            icon("doc.on.doc", help: "Copy (↩)", action: session.onCopy)
+            icon("square.and.arrow.down", help: "Save (Space)", action: session.onSave)
+            icon("pin", help: "Pin (P)", action: session.onPin)
+            icon("xmark", help: "Close (Esc)", action: session.onClose)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(.regularMaterial)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.10))
+        }
+        .shadow(color: .black.opacity(0.2), radius: 10, y: 4)
+        .fixedSize()
+    }
+
+    private func thickness(_ value: CGFloat, width: CGFloat) -> some View {
+        Button {
+            session.lineWidth = value
+        } label: {
+            Capsule()
+                .fill(session.lineWidth == value ? Color.accentColor : Color.secondary)
+                .frame(width: 15, height: width)
+                .frame(width: 24, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(session.lineWidth == value ? Color.accentColor.opacity(0.14) : .clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(width < 2 ? "Thin line" : "Thick line")
+    }
+
+    private var textSizeButton: some View {
+        Button {
+            switch session.textScale {
+            case ..<0.019: session.textScale = 0.022
+            case ..<0.026: session.textScale = 0.030
+            default: session.textScale = 0.016
+            }
+        } label: {
+            Image(systemName: "textformat.size")
+                .font(.system(size: 12.5, weight: .medium))
+                .frame(width: 24, height: 26)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help("Text size (S / M / L)")
+    }
+
+    private var bubbleButton: some View {
+        Button {
+            session.textBubble.toggle()
+        } label: {
+            Image(systemName: "bubble.left")
+                .font(.system(size: 12.5, weight: .medium))
+                .frame(width: 24, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(session.textBubble ? Color.accentColor.opacity(0.14) : .clear)
+                )
+                .foregroundStyle(session.textBubble ? Color.accentColor : .secondary)
+        }
+        .buttonStyle(.plain)
+        .help("Filled bubble behind the text")
+    }
+
+    private func arrowStyleButton(_ style: ArrowStyle, symbol: String) -> some View {
+        Button {
+            session.arrowStyle = style
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 12.5, weight: .medium))
+                .frame(width: 24, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(session.arrowStyle == style ? Color.accentColor.opacity(0.14) : .clear)
+                )
+                .foregroundStyle(session.arrowStyle == style ? Color.accentColor : .secondary)
+        }
+        .buttonStyle(.plain)
+        .help(style == .straight ? "Straight arrow" : style == .curved ? "Curved arrow" : "Elbow arrow")
+    }
+
+    private func icon(
+        _ symbol: String,
+        help: String,
+        enabled: Bool = true,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 12.5, weight: .medium))
+                .frame(width: 26, height: 26)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(enabled ? Color.secondary : Color.secondary.opacity(0.35))
+        .disabled(!enabled)
+        .help(help)
+    }
+}

@@ -2,6 +2,12 @@ import AppKit
 import CoreImage
 import SwiftUI
 
+enum ArrowStyle {
+    case straight
+    case curved
+    case elbow
+}
+
 /// A mark drawn on top of a screenshot.
 ///
 /// Points are normalised to the image (0…1, origin top-left) so an annotation
@@ -28,77 +34,88 @@ struct Annotation {
     var textScale: CGFloat = 0.022
     /// Draw text inside a filled bubble instead of directly on the image.
     var textBubble: Bool = false
+    /// How `.arrow` is drawn.
+    var arrowStyle: ArrowStyle = .straight
 
     static let palette: [Color] = [.red, .yellow, .blue, .white, .black]
 }
 
 enum AnnotationRenderer {
     /// Draws the annotations over the capture at full pixel resolution.
+    ///
+    /// Rendering into an `NSBitmapImageRep` (one point per pixel) keeps the
+    /// output at the capture's pixel size; drawing into an `NSImage(size:)`
+    /// would rasterise it again at the screen's backing scale.
     static func render(base: CGImage, annotations: [Annotation]) -> NSImage {
-        let width = CGFloat(base.width)
-        let height = CGFloat(base.height)
-        let output = NSImage(size: NSSize(width: width, height: height))
+        let width = base.width
+        let height = base.height
+        let rect = CGRect(x: 0, y: 0, width: width, height: height)
 
-        output.lockFocus()
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: width,
+            pixelsHigh: height,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ) else {
+            return NSImage(cgImage: base, size: NSSize(width: width, height: height))
+        }
+
+        rep.size = NSSize(width: width, height: height)
+
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
         NSGraphicsContext.current?.imageInterpolation = .high
-        NSImage(cgImage: base, size: NSSize(width: width, height: height))
-            .draw(in: NSRect(x: 0, y: 0, width: width, height: height))
+        NSImage(cgImage: base, size: rep.size).draw(in: rect)
 
         for annotation in annotations {
-            draw(annotation, width: width, height: height, base: base)
+            draw(annotation, in: rect, base: base)
         }
-        output.unlockFocus()
+        NSGraphicsContext.restoreGraphicsState()
 
-        return output
+        let image = NSImage(size: rep.size)
+        image.addRepresentation(rep)
+        return image
     }
 
-    private static func draw(_ annotation: Annotation, width: CGFloat, height: CGFloat, base: CGImage?) {
+    /// Draws one annotation into `rect` (bottom-left origin, AppKit space).
+    /// `base` is nil for live previews, where mosaic and blur are approximate.
+    static func draw(_ annotation: Annotation, in rect: CGRect, base: CGImage?) {
         let color = NSColor(annotation.color)
         color.setStroke()
         color.setFill()
 
-        let lineWidth = max(1, annotation.lineWidth * width)
-        let point: (CGPoint) -> NSPoint = { p in
-            NSPoint(x: p.x * width, y: height - p.y * height)
+        let lineWidth = max(1, annotation.lineWidth * rect.width)
+
+        func point(_ p: CGPoint) -> NSPoint {
+            NSPoint(x: rect.minX + p.x * rect.width, y: rect.maxY - p.y * rect.height)
         }
 
         switch annotation.shape {
         case .rectangle(let start, let end):
-            let rect = NSRect(x: point(start).x, y: point(end).y,
-                              width: point(end).x - point(start).x,
-                              height: point(start).y - point(end).y)
-            let path = NSBezierPath(rect: rect)
+            let a = point(start)
+            let b = point(end)
+            let path = NSBezierPath(rect: NSRect(
+                x: min(a.x, b.x), y: min(a.y, b.y),
+                width: abs(b.x - a.x), height: abs(b.y - a.y)
+            ))
             path.lineWidth = lineWidth
             path.stroke()
 
         case .ellipse(let start, let end):
-            let rect = NSRect(x: point(start).x, y: point(end).y,
-                              width: point(end).x - point(start).x,
-                              height: point(start).y - point(end).y)
-            let path = NSBezierPath(ovalIn: rect)
-            path.lineWidth = lineWidth
-            path.stroke()
-
-        case .arrow(let start, let end):
             let a = point(start)
             let b = point(end)
-            let path = NSBezierPath()
+            let path = NSBezierPath(ovalIn: NSRect(
+                x: min(a.x, b.x), y: min(a.y, b.y),
+                width: abs(b.x - a.x), height: abs(b.y - a.y)
+            ))
             path.lineWidth = lineWidth
-            path.lineCapStyle = .round
-            path.move(to: a)
-            path.line(to: b)
             path.stroke()
-
-            let angle = atan2(b.y - a.y, b.x - a.x)
-            let head = max(lineWidth * 3.2, 10)
-            let headPath = NSBezierPath()
-            headPath.lineWidth = lineWidth
-            headPath.lineCapStyle = .round
-            headPath.move(to: b)
-            headPath.line(to: NSPoint(x: b.x - head * cos(angle - .pi / 7), y: b.y - head * sin(angle - .pi / 7)))
-            headPath.move(to: b)
-            headPath.line(to: NSPoint(x: b.x - head * cos(angle + .pi / 7), y: b.y - head * sin(angle + .pi / 7)))
-            headPath.stroke()
 
         case .line(let start, let end):
             let path = NSBezierPath()
@@ -108,99 +125,8 @@ enum AnnotationRenderer {
             path.line(to: point(end))
             path.stroke()
 
-        case .highlighter(let points):
-            guard let first = points.first else { return }
-            color.withAlphaComponent(0.32).setStroke()
-            let path = NSBezierPath()
-            path.lineWidth = max(6, width * 0.02)
-            path.lineCapStyle = .round
-            path.lineJoinStyle = .round
-            path.move(to: point(first))
-            for p in points.dropFirst() {
-                path.line(to: point(p))
-            }
-            path.stroke()
-
-        case .number(let value, let at):
-            let center = point(at)
-            let radius = max(11, width * 0.014)
-            let circle = NSBezierPath(ovalIn: NSRect(
-                x: center.x - radius,
-                y: center.y - radius,
-                width: radius * 2,
-                height: radius * 2
-            ))
-            color.setFill()
-            circle.fill()
-
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.boldSystemFont(ofSize: radius * 1.15),
-                .foregroundColor: NSColor.white,
-            ]
-            let string = NSAttributedString(string: "\(value)", attributes: attributes)
-            let size = string.size()
-            string.draw(at: NSPoint(x: center.x - size.width / 2, y: center.y - size.height / 2))
-
-        case .mosaic(let start, let end):
-            let a = point(start)
-            let b = point(end)
-            let rect = NSRect(
-                x: min(a.x, b.x),
-                y: min(a.y, b.y),
-                width: abs(b.x - a.x),
-                height: abs(b.y - a.y)
-            )
-            guard rect.width > 2, rect.height > 2, let base else { return }
-
-            let cropRect = CGRect(
-                x: min(start.x, end.x) * width,
-                y: min(start.y, end.y) * height,
-                width: abs(end.x - start.x) * width,
-                height: abs(end.y - start.y) * height
-            )
-            guard let crop = base.cropping(to: cropRect) else { return }
-
-            let blocks = max(2, Int(cropRect.width / 14))
-            let blocksHigh = max(1, Int(CGFloat(blocks) * cropRect.height / max(1, cropRect.width)))
-            let small = NSImage(size: NSSize(width: blocks, height: blocksHigh))
-            small.lockFocus()
-            NSGraphicsContext.current?.imageInterpolation = .high
-            NSImage(cgImage: crop, size: NSSize(width: blocks, height: blocksHigh))
-                .draw(in: NSRect(x: 0, y: 0, width: blocks, height: blocksHigh))
-            small.unlockFocus()
-
-            NSGraphicsContext.current?.imageInterpolation = .none
-            small.draw(in: rect)
-            NSGraphicsContext.current?.imageInterpolation = .high
-
-        case .blur(let start, let end):
-            let a = point(start)
-            let b = point(end)
-            let rect = NSRect(
-                x: min(a.x, b.x),
-                y: min(a.y, b.y),
-                width: abs(b.x - a.x),
-                height: abs(b.y - a.y)
-            )
-            guard rect.width > 2, rect.height > 2, let base else { return }
-
-            let cropRect = CGRect(
-                x: min(start.x, end.x) * width,
-                y: min(start.y, end.y) * height,
-                width: abs(end.x - start.x) * width,
-                height: abs(end.y - start.y) * height
-            )
-            guard let crop = base.cropping(to: cropRect) else { return }
-
-            let input = CIImage(cgImage: crop)
-            let radius = max(6, cropRect.width * 0.012)
-            let output = input
-                .clampedToExtent()
-                .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: radius])
-                .cropped(to: input.extent)
-
-            guard let blurred = CIContext().createCGImage(output, from: input.extent) else { return }
-            NSImage(cgImage: blurred, size: rect.size).draw(in: rect)
+        case .arrow(let start, let end):
+            drawArrow(from: point(start), to: point(end), style: annotation.arrowStyle, lineWidth: lineWidth)
 
         case .pen(let points):
             guard let first = points.first else { return }
@@ -214,8 +140,46 @@ enum AnnotationRenderer {
             }
             path.stroke()
 
+        case .highlighter(let points):
+            guard let first = points.first else { return }
+            color.withAlphaComponent(0.32).setStroke()
+            let path = NSBezierPath()
+            path.lineWidth = max(6, rect.width * 0.02)
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+            path.move(to: point(first))
+            for p in points.dropFirst() {
+                path.line(to: point(p))
+            }
+            path.stroke()
+
+        case .number(let value, let at):
+            let center = point(at)
+            let radius = max(11, rect.width * 0.014)
+            color.setFill()
+            NSBezierPath(ovalIn: NSRect(
+                x: center.x - radius,
+                y: center.y - radius,
+                width: radius * 2,
+                height: radius * 2
+            )).fill()
+
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.boldSystemFont(ofSize: radius * 1.15),
+                .foregroundColor: NSColor.white,
+            ]
+            let string = NSAttributedString(string: "\(value)", attributes: attributes)
+            let size = string.size()
+            string.draw(at: NSPoint(x: center.x - size.width / 2, y: center.y - size.height / 2))
+
+        case .mosaic(let start, let end):
+            drawPixelEffect(start: start, end: end, rect: rect, base: base, blurred: false)
+
+        case .blur(let start, let end):
+            drawPixelEffect(start: start, end: end, rect: rect, base: base, blurred: true)
+
         case .text(let text, let at):
-            let fontSize = max(12, width * annotation.textScale)
+            let fontSize = max(12, rect.width * annotation.textScale)
             let origin = point(at)
 
             if annotation.textBubble {
@@ -243,6 +207,114 @@ enum AnnotationRenderer {
                 NSAttributedString(string: text, attributes: attributes)
                     .draw(at: NSPoint(x: origin.x, y: origin.y - fontSize))
             }
+        }
+    }
+
+    // MARK: - Arrows
+
+    private static func drawArrow(from a: NSPoint, to b: NSPoint, style: ArrowStyle, lineWidth: CGFloat) {
+        let path = NSBezierPath()
+        path.lineWidth = lineWidth
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+
+        var tangentEnd: NSPoint = b
+
+        switch style {
+        case .straight:
+            path.move(to: a)
+            path.line(to: b)
+
+        case .curved:
+            let control = controlPoint(from: a, to: b)
+            path.move(to: a)
+            path.curve(to: b, controlPoint1: control, controlPoint2: control)
+            tangentEnd = b
+
+        case .elbow:
+            let corner = NSPoint(x: b.x, y: a.y)
+            path.move(to: a)
+            path.line(to: corner)
+            path.line(to: b)
+            tangentEnd = corner
+        }
+
+        path.stroke()
+
+        let angle = atan2(b.y - tangentEnd.y, b.x - tangentEnd.x)
+        let head = max(lineWidth * 3.4, 10)
+        let headPath = NSBezierPath()
+        headPath.lineWidth = lineWidth
+        headPath.lineCapStyle = .round
+        headPath.move(to: b)
+        headPath.line(to: NSPoint(x: b.x - head * cos(angle - .pi / 7), y: b.y - head * sin(angle - .pi / 7)))
+        headPath.move(to: b)
+        headPath.line(to: NSPoint(x: b.x - head * cos(angle + .pi / 7), y: b.y - head * sin(angle + .pi / 7)))
+        headPath.stroke()
+    }
+
+    private static func controlPoint(from a: NSPoint, to b: NSPoint) -> NSPoint {
+        let mid = NSPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
+        let dx = b.x - a.x
+        let dy = b.y - a.y
+        let length = max(1, hypot(dx, dy))
+        let offset = length * 0.22
+        return NSPoint(x: mid.x - dy / length * offset, y: mid.y + dx / length * offset)
+    }
+
+    // MARK: - Mosaic / blur
+
+    private static func drawPixelEffect(
+        start: CGPoint,
+        end: CGPoint,
+        rect: CGRect,
+        base: CGImage?,
+        blurred: Bool
+    ) {
+        let a = NSPoint(x: rect.minX + start.x * rect.width, y: rect.maxY - start.y * rect.height)
+        let b = NSPoint(x: rect.minX + end.x * rect.width, y: rect.maxY - end.y * rect.height)
+        let target = NSRect(
+            x: min(a.x, b.x), y: min(a.y, b.y),
+            width: abs(b.x - a.x), height: abs(b.y - a.y)
+        )
+        guard target.width > 2, target.height > 2 else { return }
+
+        guard let base else {
+            NSColor(calibratedWhite: 0.5, alpha: 0.55).setFill()
+            NSBezierPath(rect: target).fill()
+            return
+        }
+
+        let cropRect = CGRect(
+            x: min(start.x, end.x) * CGFloat(base.width),
+            y: min(start.y, end.y) * CGFloat(base.height),
+            width: abs(end.x - start.x) * CGFloat(base.width),
+            height: abs(end.y - start.y) * CGFloat(base.height)
+        )
+        guard let crop = base.cropping(to: cropRect) else { return }
+
+        if blurred {
+            let input = CIImage(cgImage: crop)
+            let radius = max(6, cropRect.width * 0.012)
+            let output = input
+                .clampedToExtent()
+                .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: radius])
+                .cropped(to: input.extent)
+            guard let image = CIContext().createCGImage(output, from: input.extent) else { return }
+            NSImage(cgImage: image, size: target.size).draw(in: target)
+        } else {
+            let blocks = max(2, Int(cropRect.width / 14))
+            let blocksHigh = max(1, Int(CGFloat(blocks) * cropRect.height / max(1, cropRect.width)))
+            let small = NSImage(size: NSSize(width: blocks, height: blocksHigh))
+            small.lockFocus()
+            NSGraphicsContext.current?.imageInterpolation = .high
+            NSImage(cgImage: crop, size: NSSize(width: blocks, height: blocksHigh))
+                .draw(in: NSRect(x: 0, y: 0, width: blocks, height: blocksHigh))
+            small.unlockFocus()
+
+            NSGraphicsContext.current?.imageInterpolation = .none
+            small.draw(in: target)
+            NSGraphicsContext.current?.imageInterpolation = .high
         }
     }
 }

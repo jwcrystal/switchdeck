@@ -1,13 +1,14 @@
 import AppKit
-import SwiftUI
 import SwitchKit
+import UniformTypeIdentifiers
 
-/// Owns the screenshot flow: selection overlay → capture → editor.
+/// Owns the screenshot flow: in-place selection and editing, then capture,
+/// compose and deliver (copy, save or pin).
 @MainActor
 final class ScreenshotCoordinator {
     private let selections = SelectionController()
     private let capture = ScreenCaptureService()
-    private var editorController: ScreenshotEditorController?
+    private var pinnedWindows: [NSWindow] = []
 
     var switchItem: SwitchItem {
         SwitchItem(
@@ -19,74 +20,140 @@ final class ScreenshotCoordinator {
         )
     }
 
+    deinit {
+        pinnedWindows.removeAll()
+    }
+
     func begin() {
+        start(initialSelection: nil)
+    }
+
+    /// Debug: opens the overlay with a region already in edit mode, so the
+    /// toolbar layout can be checked without dragging.
+    func beginDemo() {
+        start(initialSelection: CGRect(x: 300, y: 240, width: 900, height: 520))
+    }
+
+    /// Debug: demo selection, then copy it after a moment. Verifies the whole
+    /// capture → compose → clipboard path without any clicking.
+    func beginDemoCopy() {
+        beginDemo()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+            self?.selections.completeForDebug(.copy)
+        }
+    }
+
+    private func start(initialSelection: CGRect?) {
         guard !selections.isActive else { return }
 
-        // A new capture should always work: reuse the moment by closing any
-        // editor that is still open instead of silently doing nothing.
-        editorController?.close()
-        editorController = nil
-
-        selections.begin { [weak self] request in
-            self?.handle(request)
-        } onCancel: {}
+        selections.begin(
+            onCapture: { [weak self] rect, screen, annotations, output in
+                Task { @MainActor in
+                    await self?.finish(rect: rect, screen: screen, annotations: annotations, output: output)
+                }
+            },
+            onCancel: {},
+            initialSelection: initialSelection
+        )
     }
 
-    private func handle(_ request: CaptureRequest) {
-        Task {
-            do {
-                let image = try await capture(request)
-                showEditor(with: image, placement: placement(for: request))
-            } catch {
-                present(error)
-            }
-        }
-    }
+    // MARK: - Finish
 
-    private func placement(for request: CaptureRequest) -> CGRect? {
-        switch request {
-        case .region(let rect, _):
-            return rect
-        case .window(let id):
-            return Self.windowBounds(id: id)
-        }
-    }
-
-    private static func windowBounds(id: CGWindowID) -> CGRect? {
-        let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as? [[String: Any]] ?? []
-        guard let info = list.first,
-              let dict = info[kCGWindowBounds as String] as? NSDictionary,
-              let rect = CGRect(dictionaryRepresentation: dict)
-        else { return nil }
-
-        let primaryHeight = NSScreen.screens.first(where: { $0.frame.origin == .zero })?.frame.height
-            ?? NSScreen.screens.first?.frame.height ?? 0
-        return CGRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
-    }
-
-    private func capture(_ request: CaptureRequest) async throws -> CGImage {
-        switch request {
-        case .window(let id):
-            return try await capture.captureWindow(windowID: id)
-
-        case .region(let rect, let screen):
+    private func finish(
+        rect: CGRect,
+        screen: NSScreen,
+        annotations: [Annotation],
+        output: CaptureSession.Output
+    ) async {
+        do {
             guard let displayID = Self.displayID(for: screen) else {
                 throw ScreenCaptureService.CaptureError.displayNotFound
             }
-            let full = try await capture.captureDisplay(displayID: displayID)
+
+            let full = try await capture.captureDisplay(displayID: displayID, excludingOwnApp: true)
             guard let cropped = capture.crop(image: full, to: rect, screenFrame: screen.frame) else {
                 throw ScreenCaptureService.CaptureError.captureFailed("The selected area was empty.")
             }
-            return cropped
+
+            let image = AnnotationRenderer.render(base: cropped, annotations: annotations)
+
+            switch output {
+            case .copy:
+                copy(image)
+            case .save:
+                save(image)
+            case .pin:
+                pin(image)
+            }
+        } catch {
+            present(error)
         }
     }
 
-    private func showEditor(with image: CGImage, placement: CGRect?) {
-        let controller = ScreenshotEditorController(image: image, placement: placement) { [weak self] in
-            self?.editorController = nil
+    private func copy(_ image: NSImage) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([image])
+    }
+
+    private func save(_ image: NSImage) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.png]
+        panel.nameFieldStringValue = "Screenshot \(Self.stamp()).png"
+        panel.directoryURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+        panel.canCreateDirectories = true
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        guard let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let data = rep.representation(using: .png, properties: [:])
+        else {
+            present(ScreenCaptureService.CaptureError.captureFailed("The image could not be encoded as PNG."))
+            return
         }
-        editorController = controller
-        controller.show()
+
+        do {
+            try data.write(to: url)
+        } catch {
+            present(error)
+        }
+    }
+
+    private func pin(_ image: NSImage) {
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let maxWidth = screen.visibleFrame.width * 0.55
+        let scale = min(1, maxWidth / max(1, image.size.width))
+        let size = NSSize(
+            width: max(80, image.size.width * scale),
+            height: max(60, image.size.height * scale)
+        )
+
+        let window = PinnedWindow(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.level = .floating
+        window.isMovableByWindowBackground = true
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = true
+
+        let content = PinnedContentView(frame: NSRect(origin: .zero, size: size))
+        content.imageView.image = image
+        content.onClose = { [weak window] in window?.close() }
+        window.contentView = content
+        window.onClose = { [weak window] in window?.close() }
+
+        let origin = NSPoint(
+            x: screen.visibleFrame.midX - size.width / 2,
+            y: screen.visibleFrame.midY - size.height / 2
+        )
+        window.setFrameTopLeftPoint(NSPoint(x: origin.x, y: origin.y + size.height))
+        window.makeKeyAndOrderFront(nil)
+
+        pinnedWindows.append(window)
     }
 
     private func present(_ error: Error) {
@@ -114,125 +181,139 @@ final class ScreenshotCoordinator {
         let key = NSDeviceDescriptionKey("NSScreenNumber")
         return (screen.deviceDescription[key] as? NSNumber)?.uint32Value
     }
+
+    private static func stamp() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
+        return formatter.string(from: Date())
+    }
 }
 
-/// Borderless panel that still accepts key events, so the editor can be focused
-/// and dragged like HapiGo's floating screenshot window.
-private final class EditorWindow: NSWindow {
+/// A pinned screenshot: scroll resizes it, ⌘-scroll changes opacity, Esc or the
+/// corner button closes it.
+private final class PinnedWindow: NSWindow {
+    var onClose: (() -> Void)?
+
     override var canBecomeKey: Bool { true }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 {
+            close()
+            return
+        }
+        super.keyDown(with: event)
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard let contentView else { return }
+        let menu = NSMenu()
+        menu.addItem(withTitle: "Copy", action: #selector(copyImage), keyEquivalent: "c").target = self
+        menu.addItem(withTitle: "50% Opacity", action: #selector(toggleHalfOpacity), keyEquivalent: "").target = self
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Close", action: #selector(closeSelf), keyEquivalent: "").target = self
+        NSMenu.popUpContextMenu(menu, with: event, for: contentView)
+    }
+
+    @objc private func closeSelf() {
+        close()
+    }
+
+    @objc private func copyImage() {
+        guard let view = contentView as? PinnedContentView, let image = view.imageView.image else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([image])
+    }
+
+    @objc private func toggleHalfOpacity() {
+        alphaValue = alphaValue < 0.99 ? 1 : 0.5
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        let delta = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : event.deltaY
+
+        if event.modifierFlags.contains(.command) {
+            alphaValue = min(1, max(0.2, alphaValue - delta * 0.015))
+            return
+        }
+
+        let factor = 1 + delta * 0.01
+        var frame = self.frame
+        let width = min(max(80, frame.width * factor), 4000)
+        let height = min(max(60, frame.height * factor), 4000)
+
+        frame.origin.x -= (width - frame.width) / 2
+        frame.origin.y -= (height - frame.height) / 2
+        frame.size = NSSize(width: width, height: height)
+        setFrame(frame, display: true)
+        contentView?.frame = NSRect(origin: .zero, size: frame.size)
+    }
 }
 
-/// Hosts the SwiftUI editor in a normal window and releases the coordinator when
-/// the window closes.
-@MainActor
-final class ScreenshotEditorController: NSObject, NSWindowDelegate {
-    private let window: NSWindow
-    private let model: EditorModel
-    private let onClose: () -> Void
-    private var keyMonitor: Any?
+/// Image plus a close button that fades up when the pointer is over the pin.
+private final class PinnedContentView: NSView {
+    let imageView = NSImageView()
+    var onClose: (() -> Void)?
 
-    init(image: CGImage, placement: CGRect? = nil, onClose: @escaping () -> Void) {
-        self.model = EditorModel(image: image)
-        self.onClose = onClose
-        self.window = EditorWindow(
-            contentRect: .zero,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
+    private let closeButton = NSButton()
+    private var hoverTracking: NSTrackingArea?
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+
+        imageView.frame = bounds
+        imageView.autoresizingMask = [.width, .height]
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        addSubview(imageView)
+
+        closeButton.isBordered = false
+        closeButton.bezelStyle = .circular
+        closeButton.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close")
+        closeButton.contentTintColor = .white
+        closeButton.alphaValue = 0.5
+        closeButton.target = self
+        closeButton.action = #selector(closeTapped)
+        addSubview(closeButton)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("PinnedContentView is created in code only")
+    }
+
+    override func layout() {
+        super.layout()
+        let size: CGFloat = 20
+        closeButton.frame = NSRect(
+            x: bounds.maxX - size - 6,
+            y: bounds.maxY - size - 6,
+            width: size,
+            height: size
         )
-        super.init()
+    }
 
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.hasShadow = true
-        window.isMovableByWindowBackground = true
-        window.isReleasedWhenClosed = false
-        window.delegate = self
-
-        let view = ScreenshotEditorView(model: model) { [weak self] in
-            self?.window.close()
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTracking {
+            removeTrackingArea(hoverTracking)
         }
-        window.contentViewController = NSHostingController(rootView: view)
-
-        let screen = NSScreen.main ?? NSScreen.screens[0]
-        let scale = max(1, screen.backingScaleFactor)
-        let visible = screen.visibleFrame
-
-        var pointSize = CGSize(
-            width: CGFloat(image.width) / scale,
-            height: CGFloat(image.height) / scale
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self
         )
-        let fit = min(
-            1,
-            visible.width * 0.9 / max(1, pointSize.width + 20),
-            visible.height * 0.9 / max(1, pointSize.height + 61)
-        )
-        pointSize = CGSize(width: pointSize.width * fit, height: pointSize.height * fit)
-
-        let contentWidth = max(640, pointSize.width + 20)
-        let contentHeight = max(240, pointSize.height + 61)
-
-        let frame: NSRect
-        if let placement {
-            // Appear exactly where the region was, with the bar hanging below.
-            let x = min(max(visible.minX, placement.minX - 10), visible.maxX - contentWidth)
-            let top = min(visible.maxY, placement.maxY + 8)
-            let y = max(visible.minY, top - contentHeight)
-            frame = NSRect(x: x, y: y, width: contentWidth, height: contentHeight)
-        } else {
-            frame = NSRect(
-                x: visible.midX - contentWidth / 2,
-                y: visible.midY - contentHeight / 2,
-                width: contentWidth,
-                height: contentHeight
-            )
-        }
-        window.setFrame(frame, display: false)
-
-        installKeyMonitor()
+        addTrackingArea(area)
+        hoverTracking = area
     }
 
-    /// Enter copies, Space saves. ⌘C / ⌘S keep working, and typing in the text
-    /// tool is left alone because the field becomes the first responder.
-    private func installKeyMonitor() {
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.window.isKeyWindow else { return event }
-            if self.window.firstResponder is NSTextView { return event }
-
-            switch event.keyCode {
-            case 36, 76: // Return, keypad Enter
-                self.model.copyToPasteboard()
-                return nil
-            case 49: // Space
-                self.model.save()
-                return nil
-            case 35: // P
-                self.model.pin()
-                return nil
-            default:
-                return event
-            }
-        }
+    override func mouseEntered(with event: NSEvent) {
+        closeButton.alphaValue = 1
     }
 
-    private func removeKeyMonitor() {
-        if let keyMonitor {
-            NSEvent.removeMonitor(keyMonitor)
-        }
-        keyMonitor = nil
+    override func mouseExited(with event: NSEvent) {
+        closeButton.alphaValue = 0.5
     }
 
-    func show() {
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
-    }
-
-    func close() {
-        window.close()
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        removeKeyMonitor()
-        onClose()
+    @objc private func closeTapped() {
+        onClose?()
     }
 }

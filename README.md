@@ -44,8 +44,10 @@ Settings › Customize reorders and hides switches; the choice is stored in
 ## Screenshot
 
 - `⌥E` starts a capture (installed once as a default; change it in Settings › Shortcuts).
-- In the overlay: drag selects a region, then the eight handles resize it and dragging inside moves it; `Enter` or a double click captures, a click captures the window under the pointer, `F` captures the whole screen, `R` reuses the last region, `Esc` clears or cancels.
-- In the editor: `Enter` copies, `Space` saves a PNG, `P` pins the image on screen, `⌘Z` undoes, `Esc` closes. The bar has rectangle, ellipse, line, arrow, freehand, highlighter, text, numbered markers and mosaic.
+- Dragging a region enters editing **in place**: the selection stays on screen, everything outside dims, and the toolbar appears under the region — no second window. Clicking a window edits at that window's frame; `F` selects the whole screen; `R` restores the last region.
+- Handles resize the region; dragging inside draws with the selected tool: rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (S/M/L, optional bubble), numbered markers, mosaic and blur.
+- `Enter` copies, `Space` saves a PNG, `P` pins on screen, `⌘Z` undoes, `Esc` closes.
+- Pinned images: the corner × or `Esc` closes, scroll resizes, `⌘`-scroll changes opacity, right-click has Copy / 50% Opacity / Close.
 
 ## Global shortcuts (M2)
 

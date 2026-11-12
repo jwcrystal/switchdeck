@@ -27,7 +27,7 @@ final class ScreenCaptureService {
         }
     }
 
-    func captureDisplay(displayID: CGDirectDisplayID) async throws -> CGImage {
+    func captureDisplay(displayID: CGDirectDisplayID, excludingOwnApp: Bool = false) async throws -> CGImage {
         guard CGPreflightScreenCaptureAccess() else { throw CaptureError.permission }
 
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
@@ -35,7 +35,13 @@ final class ScreenCaptureService {
             throw CaptureError.displayNotFound
         }
 
-        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let filter: SCContentFilter
+        if excludingOwnApp,
+           let ownApp = content.applications.first(where: { $0.processID == getpid() }) {
+            filter = SCContentFilter(display: display, excludingApplications: [ownApp], exceptingWindows: [])
+        } else {
+            filter = SCContentFilter(display: display, excludingWindows: [])
+        }
         let configuration = SCStreamConfiguration()
         // On this macOS, CGDisplayPixelsWide reports points; multiply by the
         // screen's scale so the capture is Retina-resolution.

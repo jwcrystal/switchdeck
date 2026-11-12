@@ -12,7 +12,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuController: MenuController?
     private var settingsWindow: NSWindow?
     private var setupWindow: NSWindow?
-    private var demoEditor: ScreenshotEditorController?
     private var instanceLockFD: Int32 = -1
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -51,52 +50,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        if CommandLine.arguments.contains("--editor-demo") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-                self?.showEditorDemo()
-            }
-        }
-
         if CommandLine.arguments.contains("--show-menu") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak controller] in
                 controller?.openMenuForDebug()
             }
         }
-    }
 
-    /// `--editor-demo` opens the editor with a drawn image, so the layout can be
-    /// checked without Screen Recording permission.
-    private func showEditorDemo() {
-        let size = NSSize(width: 1200, height: 700)
-        let image = NSImage(size: size)
-        image.lockFocus()
-        NSColor(calibratedWhite: 0.98, alpha: 1).setFill()
-        NSRect(origin: .zero, size: size).fill()
-
-        NSColor(calibratedWhite: 0.95, alpha: 1).setFill()
-        NSRect(x: 0, y: 0, width: 230, height: size.height).fill()
-
-        NSColor(calibratedWhite: 0.86, alpha: 1).setFill()
-        for (index, width) in [260.0, 420.0, 380.0, 440.0].enumerated() {
-            let rect = NSRect(x: 300, y: 560 - Double(index) * 34, width: width, height: 12)
-            NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6).fill()
+        if CommandLine.arguments.contains("--selection-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginDemo()
+            }
         }
 
-        NSColor(calibratedRed: 0.04, green: 0.52, blue: 1.0, alpha: 1).setFill()
-        NSBezierPath(
-            roundedRect: NSRect(x: 300, y: 300, width: 200, height: 64),
-            xRadius: 10,
-            yRadius: 10
-        ).fill()
-
-        image.unlockFocus()
-
-        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
-        let controller = ScreenshotEditorController(image: cgImage) { [weak self] in
-            self?.demoEditor = nil
+        if CommandLine.arguments.contains("--copy-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginDemoCopy()
+            }
         }
-        demoEditor = controller
-        controller.show()
     }
 
     /// The single place the app asks for permissions: shown at launch while
