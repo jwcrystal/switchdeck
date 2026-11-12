@@ -435,6 +435,7 @@ private final class SelectionView: NSView {
     }
 
     func prepareSample() {
+        installKeyMonitor()
         guard sampleImage == nil else { return }
         let frame = screen.frame
         Task { [weak self] in
@@ -574,17 +575,32 @@ private final class SelectionView: NSView {
     /// Enter/Space/P work even when the toolbar has focus, because the local
     /// monitor sees the keys before SwiftUI does.
     private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.editing, self.window?.isKeyWindow == true else { return event }
+            guard let self, self.window?.isKeyWindow == true else { return event }
 
-            // Esc abandons a half-typed text annotation before it closes the overlay.
+            // Esc abandons a half-typed text annotation before anything else.
             if self.textField != nil, event.keyCode == 53 {
                 self.removeTextField()
                 self.needsDisplay = true
                 return nil
             }
-
             if self.window?.firstResponder is NSTextView { return event }
+
+            // Colour picking only exists while framing the region.
+            if event.keyCode == 8, !self.editing {
+                if let hoverColor = self.hoverColor {
+                    let text = self.colorText(hoverColor)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                    ColorToast.show(text)
+                    self.onCancel?()
+                    return nil
+                }
+                return event
+            }
+
+            guard self.editing else { return event }
 
             switch event.keyCode {
             case 53: // Esc
@@ -598,10 +614,6 @@ private final class SelectionView: NSView {
                 return nil
             case 35: // P
                 self.finish(.pin)
-                return nil
-            case 48: // Tab
-                self.session.toolbarVisible.toggle()
-                self.layoutToolbar()
                 return nil
             case 6 where event.modifierFlags.contains(.command): // ⌘Z
                 if !self.session.annotations.isEmpty {
@@ -617,16 +629,6 @@ private final class SelectionView: NSView {
                     self.session.annotations.remove(at: index)
                     self.session.selectionIndex = nil
                     self.needsDisplay = true
-                    return nil
-                }
-                return event
-            case 8: // C copies the colour under the cursor
-                if let hoverColor = self.hoverColor {
-                    let text = self.colorText(hoverColor)
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(text, forType: .string)
-                    ColorToast.show(text)
-                    self.onCancel?()
                     return nil
                 }
                 return event
