@@ -9,7 +9,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 
 ## What SwitchDeck has
 
-**Switches (15)**
+**Switches (14)**
 
 | Switch | Implementation |
 |---|---|
@@ -24,7 +24,6 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Empty Trash | Finder AppleScript, top-level item count |
 | Empty Pasteboard | `NSPasteboard` |
 | Recording | `AVAudioRecorder` to `~/Music/SwitchDeck` |
-| Hide Windows | `NSRunningApplication.hide()`, fully reversible |
 | Quit All Apps | `NSRunningApplication.terminate()` |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, all removable volumes |
 
@@ -46,7 +45,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Distribution | Built locally from source | Mac App Store | GitHub (MIT), plus releases |
 | Price | Free | Free + US$4.99 unlock | Free |
 | Menu shape | Native `NSMenu` list + submenus | `NSMenu` list (same shape) | Popover panel with a grid and tabs |
-| Switch count | 15 | ~20 | ~35 plus optional tool tabs |
+| Switch count | 14 | ~20 | ~35 plus optional tool tabs |
 | Global shortcuts | Carbon + recorder + conflict report | Yes | Yes, plus macOS Shortcuts import |
 | Ordering / hiding | Drag to reorder | Yes, in its Customize page | Yes, with categories and search |
 | Permission flow | One Setup window, live status | Guided prompts | Guided prompts |
@@ -77,6 +76,7 @@ Chosen to keep the "one row, one action" shape and avoid new permissions:
 
 - **Do Not Disturb** — no public API; either run a user Shortcut or script the menu bar. The fragile one.
 - **Screenshot** — `screencapture -i`, needs Screen Recording.
+- **Hide Windows** — `NSRunningApplication.hide()`, safer than quitting everything.
 
 ## Adjacent tools
 

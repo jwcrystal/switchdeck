@@ -17,7 +17,7 @@ Grant there once and the menu never prompts again; using a switch with a missing
 
 ## Status
 
-Milestones M1–M4 are done: fifteen switches, the menu-bar UI, global shortcuts with an inline recorder, a setup window for permissions, an app icon, and a stable local signature.
+Milestones M1–M4 are done: fourteen switches, the menu-bar UI, global shortcuts with an inline recorder, a setup window for permissions, an app icon, and a stable local signature.
 
 | Switch | How it works | Note |
 |---|---|---|
@@ -33,7 +33,6 @@ Milestones M1–M4 are done: fifteen switches, the menu-bar UI, global shortcuts
 | Empty Trash | Finder AppleScript: `count items in trash`, `empty trash` | Needs Automation; direct `~/.Trash` reads are blocked by TCC |
 | Empty Pasteboard | `NSPasteboard.clearContents()` | |
 | Recording | `AVAudioRecorder` to `~/Music/SwitchDeck`, elapsed time in the menu | Needs Microphone |
-| Hide Windows | `NSRunningApplication.hide()`, skips Finder and SwitchDeck | Reversible: click the app in the Dock |
 | Quit All Apps | `NSRunningApplication.terminate()`, skips Finder and SwitchDeck | Unsaved work still prompts |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, counts removable volumes | |
 

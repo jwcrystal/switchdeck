@@ -76,7 +76,6 @@ final class ConfigTests: XCTestCase {
         XCTAssertNotNil(catalog.item(id: "stageManager"))
         XCTAssertNotNil(catalog.item(id: "emptyTrash"))
         XCTAssertNotNil(catalog.item(id: "recording"))
-        XCTAssertNotNil(catalog.item(id: "hideWindows"))
     }
 
     // MARK: - Empty Trash
