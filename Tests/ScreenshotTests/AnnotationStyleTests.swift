@@ -48,4 +48,59 @@ final class AnnotationStyleTests: XCTestCase {
         XCTAssertGreaterThan(dashed, dotted)
         XCTAssertGreaterThan(dotted, 0)
     }
+
+    func testAnnotationStyleRoundTripsThroughComputedStyle() {
+        var style = AnnotationStyle()
+        style.color = .blue
+        style.lineWidth = 0.01
+        style.textScale = 0.03
+        style.textBubble = true
+        style.arrowStyle = .sCurve
+        style.fillStyle = .solid
+        style.linePattern = .dotted
+        style.mosaicBlock = 20
+        style.numberStyle = .square
+        style.highlighterAlpha = 0.5
+
+        var annotation = Annotation(
+            shape: .rectangle(from: CGPoint(x: 0.1, y: 0.1), to: CGPoint(x: 0.9, y: 0.9)),
+            style: style
+        )
+
+        XCTAssertEqual(annotation.style, style)
+        XCTAssertEqual(annotation.color, .blue)
+        XCTAssertEqual(annotation.lineWidth, 0.01)
+        XCTAssertEqual(annotation.textScale, 0.03)
+        XCTAssertTrue(annotation.textBubble)
+        XCTAssertEqual(annotation.arrowStyle, .sCurve)
+        XCTAssertEqual(annotation.fillStyle, .solid)
+        XCTAssertEqual(annotation.linePattern, .dotted)
+        XCTAssertEqual(annotation.mosaicBlock, 20)
+        XCTAssertEqual(annotation.numberStyle, .square)
+        XCTAssertEqual(annotation.highlighterAlpha, 0.5)
+
+        annotation.style.numberStyle = .circle
+        annotation.style.lineWidth = 0.006
+
+        XCTAssertEqual(annotation.numberStyle, .circle)
+        XCTAssertEqual(annotation.lineWidth, 0.006)
+        XCTAssertEqual(annotation.style.fillStyle, .solid, "changing one field keeps the rest")
+    }
+
+    @MainActor
+    func testChangingStyleChangesRenderedPixels() throws {
+        var annotation = Annotation(
+            shape: .rectangle(from: CGPoint(x: 0.15, y: 0.15), to: CGPoint(x: 0.85, y: 0.85)),
+            style: AnnotationStyle()
+        )
+        let outline = try redPixelCount(annotation)
+        XCTAssertGreaterThan(outline, 0)
+
+        annotation.style.color = .blue
+        XCTAssertEqual(try redPixelCount(annotation), 0, "the renderer must follow the edited style")
+
+        annotation.style.color = .red
+        annotation.style.fillStyle = .solid
+        XCTAssertGreaterThan(try redPixelCount(annotation), outline)
+    }
 }

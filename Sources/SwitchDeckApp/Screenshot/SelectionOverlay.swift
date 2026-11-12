@@ -25,6 +25,7 @@ final class SelectionController {
         captureHandler = onCapture
         cancelHandler = onCancel
         session.annotations = []
+        session.resetHistory()
 
         for screen in NSScreen.screens {
             let window = SelectionWindow(screen: screen)
@@ -135,6 +136,11 @@ final class SelectionView: NSView {
             if case .none = self { return true }
             return false
         }
+    }
+
+    enum HistoryCommand: Equatable {
+        case undo
+        case redo
     }
 
     let screen: NSScreen
@@ -655,11 +661,8 @@ final class SelectionView: NSView {
         guard selection != nil, !editing else { return }
         editing = true
         session.annotations = []
-        session.onUndo = { [weak self] in
-            guard let self, !self.session.annotations.isEmpty else { return }
-            self.session.annotations.removeLast()
-            self.needsDisplay = true
-        }
+        session.onUndo = { [weak self] in self?.performHistory(.undo) }
+        session.onRedo = { [weak self] in self?.performHistory(.redo) }
         session.onCopy = { [weak self] in self?.finish(.copy) }
         session.onSave = { [weak self] in self?.finish(.save) }
         session.onPin = { [weak self] in self?.finish(.pin) }
@@ -736,6 +739,11 @@ final class SelectionView: NSView {
 
             guard self.editing else { return event }
 
+            if let command = Self.historyCommand(for: event) {
+                self.performHistory(command)
+                return nil
+            }
+
             switch event.keyCode {
             case 53: // Esc
                 self.onCancel?()
@@ -749,17 +757,11 @@ final class SelectionView: NSView {
             case 35: // P
                 self.finish(.pin)
                 return nil
-            case 6 where event.modifierFlags.contains(.command): // ⌘Z
-                if !self.session.annotations.isEmpty {
-                    self.session.annotations.removeLast()
-                    self.session.selectionIndex = nil
-                    self.needsDisplay = true
-                }
-                return nil
             case 51, 117: // Delete
                 if self.session.tool == .select,
                    let index = self.session.selectionIndex,
                    self.session.annotations.indices.contains(index) {
+                    self.session.recordUndoSnapshot()
                     self.session.annotations.remove(at: index)
                     self.session.selectionIndex = nil
                     self.needsDisplay = true
@@ -988,6 +990,9 @@ final class SelectionView: NSView {
             draft = nil
             penPoints = []
 
+        case .movingAnnotation, .resizingAnnotation:
+            session.endInteractiveChange()
+
         case .resizing:
             loadBase()
 
@@ -1002,24 +1007,14 @@ final class SelectionView: NSView {
             penPoints.append(current)
             draft = Annotation(
                 shape: session.tool == .pen ? .pen(points: penPoints) : .highlighter(points: penPoints),
-                color: session.color,
-                lineWidth: session.lineWidth,
-                linePattern: session.linePattern,
-                highlighterAlpha: session.highlighterAlpha
+                style: session.defaultStyle
             )
         case .text, .number:
             break
         default:
             draft = Annotation(
                 shape: draftShape(from: start, to: current),
-                color: session.color,
-                lineWidth: session.lineWidth,
-                arrowStyle: session.arrowStyle,
-                fillStyle: session.shapeFillStyle,
-                linePattern: session.linePattern,
-                mosaicBlock: session.mosaicBlock,
-                numberStyle: session.numberStyle,
-                highlighterAlpha: session.highlighterAlpha
+                style: session.defaultStyle
             )
         }
     }
@@ -1043,19 +1038,8 @@ final class SelectionView: NSView {
     }
 
     private func commit(_ shape: Annotation.Shape) {
-        session.annotations.append(Annotation(
-            shape: shape,
-            color: session.color,
-            lineWidth: session.lineWidth,
-            textScale: session.textScale,
-            textBubble: session.textBubble,
-            arrowStyle: session.arrowStyle,
-            fillStyle: session.shapeFillStyle,
-            linePattern: session.linePattern,
-            mosaicBlock: session.mosaicBlock,
-            numberStyle: session.numberStyle,
-            highlighterAlpha: session.highlighterAlpha
-        ))
+        session.recordUndoSnapshot()
+        session.annotations.append(Annotation(shape: shape, style: session.defaultStyle))
     }
 
     // MARK: - Text entry
@@ -1103,16 +1087,16 @@ final class SelectionView: NSView {
 
     override func keyDown(with event: NSEvent) {
         if editing {
+            if let command = Self.historyCommand(for: event) {
+                performHistory(command)
+                return
+            }
+
             switch event.keyCode {
             case 53: onCancel?()                                  // Esc
             case 36, 76: finish(.copy)                            // Return
             case 49: finish(.save)                                // Space
             case 35: finish(.pin)                                 // P
-            case 6 where event.modifierFlags.contains(.command):  // ⌘Z
-                if !session.annotations.isEmpty {
-                    session.annotations.removeLast()
-                    needsDisplay = true
-                }
             default: break
             }
             return
@@ -1146,6 +1130,47 @@ final class SelectionView: NSView {
         }
     }
 
+    /// Shared by the local key monitor and `keyDown` so both entry points treat
+    /// ⌘Z and ⇧⌘Z the same way.
+    static func historyCommand(for event: NSEvent) -> HistoryCommand? {
+        guard event.keyCode == 6, event.modifierFlags.contains(.command) else { return nil }
+        return event.modifierFlags.contains(.shift) ? .redo : .undo
+    }
+
+    private func performHistory(_ command: HistoryCommand) {
+        switch command {
+        case .undo:
+            guard session.canUndo else { return }
+        case .redo:
+            guard session.canRedo else { return }
+        }
+        cancelCanvasInteractionForHistory()
+        switch command {
+        case .undo: session.undo()
+        case .redo: session.redo()
+        }
+        needsDisplay = true
+    }
+
+    /// Undo and redo must end an annotation drag or drawing preview that is
+    /// under way; otherwise its cached `original`/`index` would be written over
+    /// the restored content by the next `mouseDragged`. Selection geometry is
+    /// not part of history, so its drag keeps running to its usual `mouseUp`.
+    private func cancelCanvasInteractionForHistory() {
+        switch interaction {
+        case .movingAnnotation, .resizingAnnotation:
+            interaction = .none
+            session.endInteractiveChange()
+        case .drawing:
+            interaction = .none
+            draft = nil
+            penPoints = []
+            startPoint = nil
+        case .none, .creating, .moving, .resizing:
+            break
+        }
+    }
+
     // MARK: - Geometry
 
     private func beginSelectionInteraction(at point: CGPoint, in selection: CGRect) {
@@ -1154,6 +1179,7 @@ final class SelectionView: NSView {
         if let index = session.selectionIndex, session.annotations.indices.contains(index) {
             let rect = viewRect(for: session.annotations[index].bounds, in: selection)
             if let handle = handle(at: point, in: rect) {
+                session.beginInteractiveChange()
                 interaction = .resizingAnnotation(
                     handle: handle,
                     index: index,
@@ -1166,6 +1192,7 @@ final class SelectionView: NSView {
 
         if let index = annotationIndex(at: normalized) {
             session.selectionIndex = index
+            session.beginInteractiveChange()
             interaction = .movingAnnotation(
                 start: normalized,
                 index: index,

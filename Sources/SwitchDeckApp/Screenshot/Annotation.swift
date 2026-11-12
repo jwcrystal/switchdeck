@@ -30,12 +30,26 @@ enum LinePattern: CaseIterable, Hashable {
     }
 }
 
+/// The appearance shared by the drawing defaults and an individual annotation.
+struct AnnotationStyle: Equatable {
+    var color: Color = .red
+    var lineWidth: CGFloat = 0.004
+    var textScale: CGFloat = 0.022
+    var textBubble = false
+    var arrowStyle: ArrowStyle = .straight
+    var fillStyle: ShapeFillStyle = .outline
+    var linePattern: LinePattern = .solid
+    var mosaicBlock: CGFloat = 14
+    var numberStyle: NumberStyle = .circle
+    var highlighterAlpha: CGFloat = 0.32
+}
+
 /// A mark drawn on top of a screenshot.
 ///
 /// Points are normalised to the image (0…1, origin top-left) so an annotation
 /// survives being displayed at any size and can be rendered at full resolution.
-struct Annotation {
-    enum Shape {
+struct Annotation: Equatable {
+    enum Shape: Equatable {
         case rectangle(from: CGPoint, to: CGPoint)
         case ellipse(from: CGPoint, to: CGPoint)
         case line(from: CGPoint, to: CGPoint)
@@ -147,6 +161,54 @@ struct Annotation {
         case .text(let text, let at): copy.shape = .text(text, at: p(at))
         }
         return copy
+    }
+}
+
+extension Annotation {
+    /// The annotation's appearance, independent of its geometry.
+    var style: AnnotationStyle {
+        get {
+            AnnotationStyle(
+                color: color,
+                lineWidth: lineWidth,
+                textScale: textScale,
+                textBubble: textBubble,
+                arrowStyle: arrowStyle,
+                fillStyle: fillStyle,
+                linePattern: linePattern,
+                mosaicBlock: mosaicBlock,
+                numberStyle: numberStyle,
+                highlighterAlpha: highlighterAlpha
+            )
+        }
+        set {
+            color = newValue.color
+            lineWidth = newValue.lineWidth
+            textScale = newValue.textScale
+            textBubble = newValue.textBubble
+            arrowStyle = newValue.arrowStyle
+            fillStyle = newValue.fillStyle
+            linePattern = newValue.linePattern
+            mosaicBlock = newValue.mosaicBlock
+            numberStyle = newValue.numberStyle
+            highlighterAlpha = newValue.highlighterAlpha
+        }
+    }
+
+    init(shape: Shape, style: AnnotationStyle) {
+        self.init(
+            shape: shape,
+            color: style.color,
+            lineWidth: style.lineWidth,
+            textScale: style.textScale,
+            textBubble: style.textBubble,
+            arrowStyle: style.arrowStyle,
+            fillStyle: style.fillStyle,
+            linePattern: style.linePattern,
+            mosaicBlock: style.mosaicBlock,
+            numberStyle: style.numberStyle,
+            highlighterAlpha: style.highlighterAlpha
+        )
     }
 }
 
