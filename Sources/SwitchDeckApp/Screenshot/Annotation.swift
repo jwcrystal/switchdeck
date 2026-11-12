@@ -519,7 +519,7 @@ enum AnnotationRenderer {
 
         if blurred {
             let input = CIImage(cgImage: crop)
-            let radius = max(6, cropRect.width * 0.012)
+            let radius = max(2, block * 0.6)
             let output = input
                 .clampedToExtent()
                 .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: radius])

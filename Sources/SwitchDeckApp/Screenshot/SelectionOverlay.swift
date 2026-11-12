@@ -1013,6 +1013,7 @@ final class SelectionView: NSView {
                 shape: draftShape(from: start, to: current),
                 color: session.color,
                 lineWidth: session.lineWidth,
+                arrowStyle: session.arrowStyle,
                 filled: session.shapeFilled,
                 mosaicBlock: session.mosaicBlock,
                 numberStyle: session.numberStyle,

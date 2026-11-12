@@ -127,35 +127,23 @@ struct CapturePayload {
 struct CaptureToolbarView: View {
     @ObservedObject var session: CaptureSession
     @State private var showWatermarkSettings = false
-    @State private var optionsTool: CaptureSession.Tool?
+    @State private var showColors = false
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            mainRow
+            if session.tool != .select {
+                optionsRow
+            }
+        }
+        .fixedSize()
+    }
+
+    private var mainRow: some View {
         HStack(spacing: 5) {
             ForEach(CaptureSession.Tool.allCases) { tool in
                 toolButton(tool)
             }
-
-            Divider().frame(height: 18)
-
-            ForEach(Annotation.palette, id: \.self) { color in
-                Circle()
-                    .fill(color)
-                    .frame(width: 12, height: 12)
-                    .overlay {
-                        Circle().strokeBorder(
-                            Color.primary.opacity(session.color == color ? 0.55 : 0.12),
-                            lineWidth: 2
-                        )
-                    }
-                    .padding(2)
-                    .contentShape(Circle())
-                    .onTapGesture { session.color = color }
-            }
-
-            Divider().frame(height: 18)
-
-            thickness(0.003, width: 1.4)
-            thickness(0.006, width: 3.0)
 
             Divider().frame(height: 18)
 
@@ -186,18 +174,9 @@ struct CaptureToolbarView: View {
 
     private func toolButton(_ tool: CaptureSession.Tool) -> some View {
         let active = session.tool == tool
-        var help = tool.help
-        if tool.hasOptions {
-            help += " · click again for options"
-        }
-
         return Button {
-            if active, tool.hasOptions {
-                optionsTool = optionsTool == tool ? nil : tool
-            } else {
-                optionsTool = nil
-                session.tool = tool
-            }
+            session.tool = active ? .select : tool
+            showColors = false
         } label: {
             Image(systemName: tool == .arrow ? arrowSymbol : tool.symbol)
                 .font(.system(size: 12.5, weight: .medium))
@@ -207,107 +186,112 @@ struct CaptureToolbarView: View {
                         .fill(active ? Color.accentColor.opacity(0.14) : .clear)
                 )
                 .foregroundStyle(active ? Color.accentColor : .secondary)
-                .overlay(alignment: .bottomTrailing) {
-                    if active, tool.hasOptions {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 6, weight: .bold))
-                            .offset(x: 3, y: 2)
-                            .opacity(0.8)
-                    }
-                }
         }
         .buttonStyle(.plain)
-        .help(help)
-        .contextMenu {
-            if tool.hasOptions {
-                toolOptions(for: tool)
-            }
-        }
-        .popover(
-            isPresented: Binding(
-                get: { optionsTool == tool },
-                set: { if !$0 { optionsTool = nil } }
-            ),
-            arrowEdge: .bottom
-        ) {
-            VStack(alignment: .leading, spacing: 7) {
-                Text(tool.help)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                toolOptions(for: tool)
-            }
-            .toggleStyle(.checkbox)
-            .padding(12)
-            .frame(minWidth: 168, alignment: .leading)
-        }
+        .help(tool.help)
+        .accessibilityLabel(tool.help)
     }
 
-    @ViewBuilder
-    private func toolOptions(for tool: CaptureSession.Tool) -> some View {
+    private var optionsRow: some View {
+        HStack(spacing: 5) {
+            if session.tool != .mosaic && session.tool != .blur {
+                Button { showColors.toggle() } label: {
+                    Circle().fill(session.color).frame(width: 16, height: 16)
+                        .overlay(Circle().strokeBorder(Color.primary.opacity(0.2)))
+                        .frame(width: 26, height: 26)
+                }
+                .buttonStyle(.plain)
+                .help("Color")
+                .accessibilityLabel("Annotation color")
+                .popover(isPresented: $showColors, arrowEdge: .bottom) {
+                    HStack(spacing: 9) {
+                        ForEach(Annotation.palette, id: \.self) { color in
+                            Button { session.color = color; showColors = false } label: {
+                                Circle().fill(color).frame(width: 20, height: 20)
+                                    .overlay(Circle().strokeBorder(Color.primary.opacity(session.color == color ? 0.7 : 0.15), lineWidth: 2))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(color.description)
+                        }
+                    }.padding(12)
+                }
+                Divider().frame(height: 18)
+            }
+            toolOptions
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 9).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.primary.opacity(0.1)))
+        .shadow(color: .black.opacity(0.15), radius: 7, y: 3)
+        .padding(.leading, min(CGFloat(CaptureSession.Tool.allCases.firstIndex(of: session.tool) ?? 0) * 31, 150))
+    }
+
+    @ViewBuilder private var toolOptions: some View {
+        let tool = session.tool
         switch tool {
         case .arrow:
-            optionToggle("Straight", ArrowStyle.straight, in: \.arrowStyle)
-            optionToggle("Curved", ArrowStyle.curved, in: \.arrowStyle)
-            optionToggle("Elbow", ArrowStyle.elbow, in: \.arrowStyle)
-            optionToggle("S curve", ArrowStyle.sCurve, in: \.arrowStyle)
-
+            ForEach([ArrowStyle.straight, .curved, .elbow, .sCurve], id: \.self) { style in
+                optionButton(style.title, selected: session.arrowStyle == style) { session.arrowStyle = style } label: {
+                    ArrowOptionIcon(style: style).stroke(style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+                        .frame(width: 24, height: 20)
+                }
+            }
+            lineWidthSlider
         case .rectangle, .ellipse:
-            Toggle("Filled", isOn: $session.shapeFilled)
-
+            optionIcon(tool == .ellipse ? "circle" : "rectangle", "Outline", selected: !session.shapeFilled) { session.shapeFilled = false }
+            optionIcon(tool == .ellipse ? "circle.fill" : "rectangle.fill", "Filled", selected: session.shapeFilled) { session.shapeFilled = true }
+            lineWidthSlider
         case .text:
-            optionToggle("Small text", CGFloat(0.016), in: \.textScale)
-            optionToggle("Medium text", CGFloat(0.022), in: \.textScale)
-            optionToggle("Large text", CGFloat(0.030), in: \.textScale)
-            Divider()
-            Toggle("Bubble background", isOn: $session.textBubble)
-
+            ForEach([CGFloat(0.016), 0.022, 0.030], id: \.self) { size in
+                optionButton("Text size \(Int(size * 1000))", selected: session.textScale == size) { session.textScale = size } label: {
+                    Text("A").font(.system(size: size * 600 + 4, weight: .medium))
+                }
+            }
+            Divider().frame(height: 18)
+            optionIcon("text.bubble", "Bubble background", selected: session.textBubble) { session.textBubble.toggle() }
         case .number:
-            optionToggle("Circle marker", NumberStyle.circle, in: \.numberStyle)
-            optionToggle("Square marker", NumberStyle.square, in: \.numberStyle)
-
+            optionIcon("1.circle", "Circle marker", selected: session.numberStyle == .circle) { session.numberStyle = .circle }
+            optionIcon("1.square", "Square marker", selected: session.numberStyle == .square) { session.numberStyle = .square }
         case .mosaic, .blur:
-            optionToggle("Fine", CGFloat(8), in: \.mosaicBlock)
-            optionToggle("Medium", CGFloat(14), in: \.mosaicBlock)
-            optionToggle("Coarse", CGFloat(24), in: \.mosaicBlock)
-
+            Image(systemName: tool.symbol).frame(width: 26)
+            optionSlider("Strength", value: $session.mosaicBlock, range: 6...32)
         case .highlighter:
-            optionToggle("Light", CGFloat(0.2), in: \.highlighterAlpha)
-            optionToggle("Medium", CGFloat(0.32), in: \.highlighterAlpha)
-            optionToggle("Strong", CGFloat(0.55), in: \.highlighterAlpha)
-
-        case .select, .line, .pen:
+            lineWidthSlider
+            Image(systemName: "circle.lefthalf.filled").frame(width: 22)
+            optionSlider("Opacity", value: $session.highlighterAlpha, range: 0.15...0.7)
+        case .line, .pen:
+            lineWidthSlider
+        case .select:
             EmptyView()
         }
     }
 
-    private func optionToggle<Value: Hashable>(
-        _ title: String,
-        _ value: Value,
-        in keyPath: ReferenceWritableKeyPath<CaptureSession, Value>
-    ) -> some View {
-        Toggle(title, isOn: Binding(
-            get: { session[keyPath: keyPath] == value },
-            set: { isOn in
-                if isOn { session[keyPath: keyPath] = value }
-            }
-        ))
+    private var lineWidthSlider: some View {
+        HStack(spacing: 3) {
+            Divider().frame(height: 18)
+            Image(systemName: "lineweight").frame(width: 23)
+            optionSlider("Line width", value: $session.lineWidth, range: 0.0015...0.016)
+        }
     }
 
-    private func thickness(_ value: CGFloat, width: CGFloat) -> some View {
-        Button {
-            session.lineWidth = value
-        } label: {
-            Capsule()
-                .fill(session.lineWidth == value ? Color.accentColor : Color.secondary)
-                .frame(width: 15, height: width)
-                .frame(width: 24, height: 26)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(session.lineWidth == value ? Color.accentColor.opacity(0.14) : .clear)
-                )
+    private func optionSlider(_ title: String, value: Binding<CGFloat>, range: ClosedRange<CGFloat>) -> some View {
+        Slider(value: value, in: range).controlSize(.mini).frame(width: 90)
+            .help(title).accessibilityLabel(title)
+    }
+
+    private func optionIcon(_ symbol: String, _ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        optionButton(title, selected: selected, action: action) {
+            Image(systemName: symbol).font(.system(size: 15))
         }
-        .buttonStyle(.plain)
-        .help(width < 2 ? "Thin line" : "Thick line")
+    }
+
+    private func optionButton<Label: View>(_ title: String, selected: Bool, action: @escaping () -> Void, @ViewBuilder label: () -> Label) -> some View {
+        Button(action: action) {
+            label().frame(width: 28, height: 26)
+                .foregroundStyle(selected ? Color.accentColor : .secondary)
+                .background(RoundedRectangle(cornerRadius: 5).fill(selected ? Color.accentColor.opacity(0.14) : .clear))
+        }.buttonStyle(.plain).help(title).accessibilityLabel(title)
     }
 
     // MARK: - Tool options
