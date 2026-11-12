@@ -59,8 +59,9 @@ final class CaptureSession: ObservableObject {
     @Published var watermarkScale: CGFloat = 0.02
     @Published var watermarkRotation: CGFloat = 0
     @Published var watermarkOpacity: CGFloat = 0.6
+    @Published var watermarkColor: Color = .white
 
-    let watermarkText: String = {
+    @Published var watermarkText: String = {
         let name = NSFullUserName()
         return name.isEmpty ? "SwitchDeck" : name
     }()
@@ -72,7 +73,8 @@ final class CaptureSession: ObservableObject {
             placement: watermarkPlacement,
             scale: watermarkScale,
             rotation: watermarkRotation,
-            opacity: watermarkOpacity
+            opacity: watermarkOpacity,
+            color: NSColor(watermarkColor)
         )
     }
 
@@ -329,6 +331,9 @@ private struct WatermarkSettingsView: View {
             Text("Watermark")
                 .font(.headline)
 
+            TextField("Watermark text", text: $session.watermarkText)
+                .textFieldStyle(.roundedBorder)
+
             Picker("Position", selection: $session.watermarkPlacement) {
                 ForEach(AnnotationRenderer.WatermarkOptions.Placement.allCases) { placement in
                     Label(placement.title, systemImage: placement.symbol).tag(placement)
@@ -364,10 +369,33 @@ private struct WatermarkSettingsView: View {
                     .monospacedDigit()
                     .frame(width: 36, alignment: .trailing)
             }
+
+            HStack(spacing: 8) {
+                Text("Color")
+                    .frame(width: 54, alignment: .leading)
+                    .foregroundStyle(.secondary)
+
+                ForEach(Self.palette, id: \.self) { color in
+                    Circle()
+                        .fill(color)
+                        .frame(width: 14, height: 14)
+                        .overlay {
+                            Circle().strokeBorder(
+                                Color.primary.opacity(session.watermarkColor == color ? 0.6 : 0.12),
+                                lineWidth: 2
+                            )
+                        }
+                        .padding(2)
+                        .contentShape(Circle())
+                        .onTapGesture { session.watermarkColor = color }
+                }
+            }
         }
         .padding(14)
         .frame(width: 290)
     }
+
+    private static let palette: [Color] = [.white, .black, .red, .yellow, .blue]
 
     private func sizeButton(_ scale: CGFloat, _ title: String) -> some View {
         Button(title) {

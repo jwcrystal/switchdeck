@@ -251,6 +251,7 @@ enum AnnotationRenderer {
         /// Degrees, counter-clockwise.
         var rotation: CGFloat = 0
         var opacity: CGFloat = 0.6
+        var color: NSColor = .white
     }
 
     static func drawWatermark(_ options: WatermarkOptions, in rect: CGRect) {
@@ -264,7 +265,7 @@ enum AnnotationRenderer {
 
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor(white: 1, alpha: options.opacity),
+            .foregroundColor: options.color.withAlphaComponent(options.opacity),
             .shadow: shadow,
         ]
         let string = NSAttributedString(string: options.text, attributes: attributes)
@@ -273,6 +274,9 @@ enum AnnotationRenderer {
 
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
+
+        // Never let a rotated or tiled watermark spill outside the capture.
+        NSGraphicsContext.current?.cgContext.clip(to: rect)
 
         if options.placement == .tiled {
             let context = NSGraphicsContext.current?.cgContext

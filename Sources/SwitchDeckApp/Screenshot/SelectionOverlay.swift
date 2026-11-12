@@ -380,6 +380,14 @@ private final class SelectionView: NSView {
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.editing, self.window?.isKeyWindow == true else { return event }
+
+            // Esc abandons a half-typed text annotation before it closes the overlay.
+            if self.textField != nil, event.keyCode == 53 {
+                self.removeTextField()
+                self.needsDisplay = true
+                return nil
+            }
+
             if self.window?.firstResponder is NSTextView { return event }
 
             switch event.keyCode {
@@ -486,6 +494,7 @@ private final class SelectionView: NSView {
         window?.makeKey()
         window?.makeFirstResponder(self)
         let point = convert(event.locationInWindow, from: nil)
+        commitTextFieldIfNeeded()
 
         if editing {
             if let selection, let handle = handle(at: point, in: selection) {
@@ -656,24 +665,34 @@ private final class SelectionView: NSView {
         field.font = .systemFont(ofSize: 13)
         field.target = self
         field.action = #selector(commitText)
+        field.delegate = self
         addSubview(field)
         textField = field
         window?.makeFirstResponder(field)
     }
 
     @objc private func commitText() {
-        guard let field = textField, let selection else { return }
+        commitTextFieldIfNeeded()
+    }
+
+    /// Commits a pending text annotation; an empty field just disappears. Also
+    /// called when the field loses focus, so a stray click never leaves a box
+    /// hanging around.
+    private func commitTextFieldIfNeeded() {
+        guard let field = textField else { return }
         let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !text.isEmpty {
+        removeTextField()
+        if !text.isEmpty, let selection {
             commit(.text(text, at: normalize(textAnchor, in: selection)))
         }
-        removeTextField()
         needsDisplay = true
     }
 
     private func removeTextField() {
-        textField?.removeFromSuperview()
+        guard let field = textField else { return }
         textField = nil
+        field.delegate = nil
+        field.removeFromSuperview()
     }
 
     // MARK: - Keyboard
@@ -851,5 +870,11 @@ private enum SelectionMemory {
             [rect.origin.x, rect.origin.y, rect.width, rect.height],
             forKey: key
         )
+    }
+}
+
+extension SelectionView: NSTextFieldDelegate {
+    func controlTextDidEndEditing(_ obj: Notification) {
+        commitTextFieldIfNeeded()
     }
 }
