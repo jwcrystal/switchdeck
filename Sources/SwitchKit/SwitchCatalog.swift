@@ -17,6 +17,7 @@ public struct SwitchCatalog {
     public static func standard() -> SwitchCatalog {
         let keepAwake = KeepAwakeSwitch()
         let hiddenFiles = ShowHiddenFilesSwitch()
+        let desktopIcons = HideDesktopIconsSwitch()
         let darkMode = DarkModeSwitch()
         let pasteboard = EmptyPasteboardSwitch()
         let quitAll = QuitAllAppsSwitch()
@@ -37,6 +38,15 @@ public struct SwitchCatalog {
                 kind: .toggle,
                 state: { hiddenFiles.isOn() },
                 perform: { try hiddenFiles.toggle() }
+            ),
+            SwitchItem(
+                id: "hideDesktopIcons",
+                title: "Hide Desktop Icons",
+                symbolName: "rectangle.on.rectangle.slash",
+                kind: .toggle,
+                state: { desktopIcons.areIconsHidden },
+                subtitle: { desktopIcons.areIconsHidden ? "Icons hidden" : nil },
+                perform: { try desktopIcons.toggle() }
             ),
             SwitchItem(
                 id: "screenClean",

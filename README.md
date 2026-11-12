@@ -17,11 +17,12 @@ Grant there once and the menu never prompts again; using a switch with a missing
 
 ## Status
 
-Milestones M1–M4 are done: fourteen switches, the menu-bar UI, global shortcuts with an inline recorder, a setup window for permissions, an app icon, and a stable local signature.
+Milestones M1–M4 are done: fifteen switches, the menu-bar UI, global shortcuts with an inline recorder, a setup window for permissions, an app icon, and a stable local signature.
 
 | Switch | How it works | Note |
 |---|---|---|
-| Show Hidden Files | `defaults write com.apple.finder AppleShowAllFiles` + Finder restart | Closes Finder windows |
+| Show Hidden Files | `defaults write com.apple.finder AppleShowAllFiles` + Finder restart | Finder restarts |
+| Hide Desktop Icons | `defaults write com.apple.finder CreateDesktop` + Finder restart | Finder restarts; menu says "Icons hidden" |
 | Screen Clean | Black overlay on every screen at screen-saver level + keyboard lock | Click once to reveal Stop Clean |
 | Keep Awake | `ProcessInfo.beginActivity`, optional duration and expiry in the menu | Shown in `pmset -g assertions` |
 | Dark Mode | System Events appearance preferences | Needs Automation |

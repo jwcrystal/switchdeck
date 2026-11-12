@@ -9,11 +9,12 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 
 ## What SwitchDeck has
 
-**Switches (14)**
+**Switches (15)**
 
 | Switch | Implementation |
 |---|---|
 | Show Hidden Files | `defaults` on `com.apple.finder` + Finder restart |
+| Hide Desktop Icons | `defaults` on `com.apple.finder CreateDesktop` + Finder restart |
 | Screen Clean | Black overlay per screen at screen-saver level + keyboard lock |
 | Keep Awake | `ProcessInfo` power assertion, 5 min – 4 h durations, expiry in the menu |
 | Dark Mode | System Events appearance preferences |
@@ -45,7 +46,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Distribution | Built locally from source | Mac App Store | GitHub (MIT), plus releases |
 | Price | Free | Free + US$4.99 unlock | Free |
 | Menu shape | Native `NSMenu` list + submenus | `NSMenu` list (same shape) | Popover panel with a grid and tabs |
-| Switch count | 14 | ~20 | ~35 plus optional tool tabs |
+| Switch count | 15 | ~20 | ~35 plus optional tool tabs |
 | Global shortcuts | Carbon + recorder + conflict report | Yes | Yes, plus macOS Shortcuts import |
 | Ordering / hiding | Drag to reorder | Yes, in its Customize page | Yes, with categories and search |
 | Permission flow | One Setup window, live status | Guided prompts | Guided prompts |

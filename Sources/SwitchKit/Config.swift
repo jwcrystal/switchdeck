@@ -34,16 +34,27 @@ public struct SwitchDeckConfig: Codable, Equatable {
         didCompleteSetup = try container.decodeIfPresent(Bool.self, forKey: .didCompleteSetup) ?? false
     }
 
-    /// Applies the saved order, then appends every id the config has not seen.
+    /// Applies the saved order, then slips ids the config has never seen in next
+    /// to their catalog neighbours (so a new switch lands where it was designed,
+    /// not at the bottom of the menu).
     public func orderedIDs(from allIDs: [String]) -> [String] {
         var seen = Set<String>()
         var result: [String] = []
+
         for id in order where allIDs.contains(id) && seen.insert(id).inserted {
             result.append(id)
         }
-        for id in allIDs where seen.insert(id).inserted {
-            result.append(id)
+
+        for (catalogIndex, id) in allIDs.enumerated() where !seen.contains(id) {
+            if let next = allIDs[(catalogIndex + 1)...].first(where: { result.contains($0) }),
+               let position = result.firstIndex(of: next) {
+                result.insert(id, at: position)
+            } else {
+                result.append(id)
+            }
+            seen.insert(id)
         }
+
         return result
     }
 
