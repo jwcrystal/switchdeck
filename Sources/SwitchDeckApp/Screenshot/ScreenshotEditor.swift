@@ -232,7 +232,7 @@ struct ScreenshotEditorView: View {
 
             iconButton("arrow.uturn.backward", help: "Undo (⌘Z)") { model.undo() }
                 .keyboardShortcut("z", modifiers: .command)
-            iconButton("doc.on.doc", help: "Copy (⌘C)") { model.copyToPasteboard() }
+            iconButton("doc.on.doc", help: "Copy (↩)") { model.copyToPasteboard() }
                 .keyboardShortcut("c", modifiers: .command)
             iconButton("pin", help: "Pin on screen") { model.pin() }
 
@@ -246,6 +246,7 @@ struct ScreenshotEditorView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.red)
+            .keyboardShortcut(.cancelAction)
             .help("Close (Esc)")
 
             Button {
@@ -259,7 +260,7 @@ struct ScreenshotEditorView: View {
             }
             .buttonStyle(.plain)
             .keyboardShortcut("s", modifiers: .command)
-            .help("Save PNG (⌘S)")
+            .help("Save PNG (Space)")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)

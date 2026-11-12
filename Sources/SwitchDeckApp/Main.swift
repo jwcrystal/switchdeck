@@ -43,6 +43,11 @@ enum SwitchDeckApp {
             return
         }
 
+        if arguments.contains("--window-check") {
+            Dump.windowCheck()
+            return
+        }
+
         let application = NSApplication.shared
         let delegate = AppDelegate()
         application.delegate = delegate
@@ -207,6 +212,37 @@ enum Dump {
         }
 
         RunLoop.main.run()
+    }
+
+    /// Prints which normal window sits under the mouse, using the same
+    /// coordinate conversion as the selection overlay.
+    @MainActor
+    static func windowCheck() {
+        let mouse = NSEvent.mouseLocation
+        guard let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero }) else {
+            print("no primary screen")
+            return
+        }
+        let topLeft = CGPoint(x: mouse.x, y: primary.frame.height - mouse.y)
+        print("mouse=\(mouse) cg=\(topLeft)")
+
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+
+        for info in list {
+            guard let pid = info[kCGWindowOwnerPID as String] as? pid_t, pid != ownPID else { continue }
+            guard (info[kCGWindowLayer as String] as? Int) == 0 else { continue }
+            guard let dict = info[kCGWindowBounds as String] as? NSDictionary,
+                  let rect = CGRect(dictionaryRepresentation: dict)
+            else { continue }
+            guard rect.contains(topLeft) else { continue }
+
+            let owner = info[kCGWindowOwnerName as String] as? String ?? "?"
+            let id = info[kCGWindowNumber as String] ?? "?"
+            print("hit owner=\(owner) id=\(id) pid=\(pid) bounds=\(rect)")
+            return
+        }
+        print("no window at cursor")
     }
 
     /// Registers a probe shortcut through the real Carbon path and reports the

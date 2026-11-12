@@ -285,13 +285,23 @@ private final class SelectionView: NSView {
         needsDisplay = true
     }
 
+    /// CGWindow bounds use the primary display's top-left as origin. The primary
+    /// display is the one at (0,0), not necessarily the tallest screen — using
+    /// `maxY` here broke window picking on multi-display setups.
+    private var primaryHeight: CGFloat {
+        if let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero }) {
+            return primary.frame.height
+        }
+        return NSScreen.main?.frame.height ?? NSScreen.screens.first?.frame.height ?? 0
+    }
+
     /// Finds the frontmost normal window under a point, in this view's space.
     private func windowUnderMouse(_ point: CGPoint) -> (id: CGWindowID, rect: CGRect)? {
         let global = CGPoint(
             x: point.x + screen.frame.minX,
             y: point.y + screen.frame.minY
         )
-        let mainHeight = NSScreen.screens.map(\.frame.maxY).max() ?? 0
+        let mainHeight = primaryHeight
         let topLeftPoint = CGPoint(x: global.x, y: mainHeight - global.y)
         let ownPID = ProcessInfo.processInfo.processIdentifier
 

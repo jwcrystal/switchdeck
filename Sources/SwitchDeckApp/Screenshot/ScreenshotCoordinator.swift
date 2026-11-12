@@ -20,7 +20,12 @@ final class ScreenshotCoordinator {
     }
 
     func begin() {
-        guard !selections.isActive, editorController == nil else { return }
+        guard !selections.isActive else { return }
+
+        // A new capture should always work: reuse the moment by closing any
+        // editor that is still open instead of silently doing nothing.
+        editorController?.close()
+        editorController = nil
 
         selections.begin { [weak self] request in
             self?.handle(request)
@@ -103,6 +108,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     private let window: NSWindow
     private let model: EditorModel
     private let onClose: () -> Void
+    private var keyMonitor: Any?
 
     init(image: CGImage, onClose: @escaping () -> Void) {
         self.model = EditorModel(image: image)
@@ -119,6 +125,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         window.backgroundColor = .clear
         window.hasShadow = true
         window.isMovableByWindowBackground = true
+        window.isReleasedWhenClosed = false
         window.delegate = self
 
         let view = ScreenshotEditorView(model: model) { [weak self] in
@@ -134,6 +141,35 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         let height = max(360, CGFloat(image.height) * scale + 72)
         window.setContentSize(NSSize(width: width, height: height))
         window.center()
+
+        installKeyMonitor()
+    }
+
+    /// Enter copies, Space saves. ⌘C / ⌘S keep working, and typing in the text
+    /// tool is left alone because the field becomes the first responder.
+    private func installKeyMonitor() {
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.window.isKeyWindow else { return event }
+            if self.window.firstResponder is NSTextView { return event }
+
+            switch event.keyCode {
+            case 36, 76: // Return, keypad Enter
+                self.model.copyToPasteboard()
+                return nil
+            case 49: // Space
+                self.model.save()
+                return nil
+            default:
+                return event
+            }
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+        }
+        keyMonitor = nil
     }
 
     func show() {
@@ -141,7 +177,12 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
+    func close() {
+        window.close()
+    }
+
     func windowWillClose(_ notification: Notification) {
+        removeKeyMonitor()
         onClose()
     }
 }
