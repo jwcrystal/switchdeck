@@ -4,6 +4,11 @@ import AppKit
 /// moved between frames and appends the new rows.
 @MainActor
 final class ScrollingCapture {
+    enum Direction {
+        case vertical, horizontal
+    }
+
+    private let direction: Direction
     private struct FixedEdges {
         var top = 0, bottom = 0, left = 0, right = 0
 
@@ -34,8 +39,9 @@ final class ScrollingCapture {
     var onNeedsOverlap: (() -> Void)?
     var onFinish: ((CGImage?) -> Void)?
 
-    init(region: CGRect, capture: @escaping () async -> CGImage?) {
+    init(region: CGRect, direction: Direction = .vertical, capture: @escaping () async -> CGImage?) {
         self.region = region
+        self.direction = direction
         self.capture = capture
     }
 
@@ -98,7 +104,8 @@ final class ScrollingCapture {
         }
     }
 
-    private func append(_ frame: CGImage) {
+    private func append(_ rawFrame: CGImage) {
+        guard let frame = canonicalImage(rawFrame) else { return }
         guard let previous = previousFrame else {
             slices = [frame]
             totalHeight = frame.height
@@ -189,8 +196,33 @@ final class ScrollingCapture {
         }
 
         guard let content = context.makeImage() else { return nil }
-        guard let firstFrame, let edges = fixedEdges, !edges.isEmpty else { return content }
-        return composeFixedEdges(content: content, first: firstFrame, last: previousFrame ?? firstFrame, edges: edges)
+        let composite: CGImage
+        if let firstFrame, let edges = fixedEdges, !edges.isEmpty {
+            guard let image = composeFixedEdges(content: content, first: firstFrame, last: previousFrame ?? firstFrame, edges: edges) else { return nil }
+            composite = image
+        } else {
+            composite = content
+        }
+        return direction == .horizontal ? Self.rotate(composite, clockwise: false) : composite
+    }
+
+    /// Normalise horizontal movement to vertical rows, so confidence checks,
+    /// fixed-edge handling and seam composition are shared by both modes.
+    private func canonicalImage(_ image: CGImage) -> CGImage? {
+        direction == .horizontal ? Self.rotate(image, clockwise: true) : image
+    }
+
+    private static func rotate(_ image: CGImage, clockwise: Bool) -> CGImage? {
+        guard let context = CGContext(data: nil, width: image.height, height: image.width,
+            bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        context.interpolationQuality = .none
+        let transform = clockwise
+            ? CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: CGFloat(image.width))
+            : CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: CGFloat(image.height), ty: 0)
+        context.concatenate(transform)
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return context.makeImage()
     }
 
     /// Edge strips that did not move are excluded from alignment. Lock these
@@ -260,8 +292,8 @@ final class ScrollingCapture {
     }
 
     /// Debug: exposes the real compositing path for pixel-level regressions.
-    static func debugCompose(_ frames: [CGImage]) -> CGImage? {
-        let probe = ScrollingCapture(region: .zero, capture: { nil })
+    static func debugCompose(_ frames: [CGImage], direction: Direction = .vertical) -> CGImage? {
+        let probe = ScrollingCapture(region: .zero, direction: direction, capture: { nil })
         for frame in frames {
             probe.append(frame)
         }
@@ -348,7 +380,7 @@ final class ScrollingCapture {
         // displacement. Always include small native movements near zero.
         var shifts = Set(1...radius)
         let limit = current.height - max(12, current.height / 4)
-        for candidate in candidates.prefix(4) {
+        for candidate in candidates.prefix(24) {
             let estimate = Int((Double(candidate.shift) * scale).rounded())
             let lower = max(1, estimate - radius)
             let upper = min(limit, estimate + radius)

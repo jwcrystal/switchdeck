@@ -14,6 +14,22 @@ enum NumberStyle: Hashable {
     case square
 }
 
+enum ShapeFillStyle: CaseIterable, Hashable {
+    case outline, hatched, solid
+}
+
+enum LinePattern: CaseIterable, Hashable {
+    case solid, dashed, dotted
+
+    func dashLengths(width: CGFloat) -> [CGFloat] {
+        switch self {
+        case .solid: return []
+        case .dashed: return [max(3, width * 3), max(2, width * 2)]
+        case .dotted: return [0, max(3, width * 2.5)]
+        }
+    }
+}
+
 /// A mark drawn on top of a screenshot.
 ///
 /// Points are normalised to the image (0…1, origin top-left) so an annotation
@@ -43,7 +59,8 @@ struct Annotation {
     /// How `.arrow` is drawn.
     var arrowStyle: ArrowStyle = .straight
     /// Fill rectangles and ellipses instead of only stroking them.
-    var filled: Bool = false
+    var fillStyle: ShapeFillStyle = .outline
+    var linePattern: LinePattern = .solid
     /// Mosaic block size in pixels.
     var mosaicBlock: CGFloat = 14
     /// Shape of a numbered marker.
@@ -201,7 +218,7 @@ enum AnnotationRenderer {
                 width: abs(b.x - a.x), height: abs(b.y - a.y)
             ))
             path.lineWidth = lineWidth
-            if annotation.filled { path.fill() } else { path.stroke() }
+            drawShape(path, annotation: annotation, lineWidth: lineWidth)
 
         case .ellipse(let start, let end):
             let a = point(start)
@@ -211,7 +228,7 @@ enum AnnotationRenderer {
                 width: abs(b.x - a.x), height: abs(b.y - a.y)
             ))
             path.lineWidth = lineWidth
-            if annotation.filled { path.fill() } else { path.stroke() }
+            drawShape(path, annotation: annotation, lineWidth: lineWidth)
 
         case .line(let start, let end):
             let path = NSBezierPath()
@@ -219,10 +236,11 @@ enum AnnotationRenderer {
             path.lineCapStyle = .round
             path.move(to: point(start))
             path.line(to: point(end))
+            applyPattern(annotation.linePattern, to: path, width: lineWidth)
             path.stroke()
 
         case .arrow(let start, let end):
-            drawArrow(from: point(start), to: point(end), style: annotation.arrowStyle, lineWidth: lineWidth)
+            drawArrow(from: point(start), to: point(end), style: annotation.arrowStyle, lineWidth: lineWidth, pattern: annotation.linePattern)
 
         case .pen(let points):
             guard let first = points.first else { return }
@@ -234,13 +252,14 @@ enum AnnotationRenderer {
             for p in points.dropFirst() {
                 path.line(to: point(p))
             }
+            applyPattern(annotation.linePattern, to: path, width: lineWidth)
             path.stroke()
 
         case .highlighter(let points):
             guard let first = points.first else { return }
             color.withAlphaComponent(annotation.highlighterAlpha).setStroke()
             let path = NSBezierPath()
-            path.lineWidth = max(6, rect.width * 0.02)
+            path.lineWidth = max(2, rect.width * annotation.lineWidth * 5)
             path.lineCapStyle = .round
             path.lineJoinStyle = .round
             path.move(to: point(first))
@@ -426,7 +445,32 @@ enum AnnotationRenderer {
 
     // MARK: - Arrows
 
-    private static func drawArrow(from a: NSPoint, to b: NSPoint, style: ArrowStyle, lineWidth: CGFloat) {
+    private static func applyPattern(_ pattern: LinePattern, to path: NSBezierPath, width: CGFloat) {
+        let lengths = pattern.dashLengths(width: width)
+        path.lineCapStyle = .round
+        lengths.withUnsafeBufferPointer { path.setLineDash($0.baseAddress, count: $0.count, phase: 0) }
+    }
+
+    private static func drawShape(_ path: NSBezierPath, annotation: Annotation, lineWidth: CGFloat) {
+        if annotation.fillStyle == .solid { path.fill(); return }
+        if annotation.fillStyle == .hatched {
+            NSGraphicsContext.saveGraphicsState()
+            path.addClip()
+            let box = path.bounds
+            let hatch = NSBezierPath()
+            hatch.lineWidth = max(1, lineWidth * 0.5)
+            for x in stride(from: box.minX - box.height, through: box.maxX, by: max(6, lineWidth * 3)) {
+                hatch.move(to: NSPoint(x: x, y: box.minY))
+                hatch.line(to: NSPoint(x: x + box.height, y: box.maxY))
+            }
+            hatch.stroke()
+            NSGraphicsContext.restoreGraphicsState()
+        }
+        applyPattern(annotation.linePattern, to: path, width: lineWidth)
+        path.stroke()
+    }
+
+    private static func drawArrow(from a: NSPoint, to b: NSPoint, style: ArrowStyle, lineWidth: CGFloat, pattern: LinePattern) {
         let path = NSBezierPath()
         path.lineWidth = lineWidth
         path.lineCapStyle = .round
@@ -436,6 +480,7 @@ enum AnnotationRenderer {
 
         switch style {
         case .straight:
+            tangentEnd = a
             path.move(to: a)
             path.line(to: b)
 
@@ -443,7 +488,7 @@ enum AnnotationRenderer {
             let control = controlPoint(from: a, to: b)
             path.move(to: a)
             path.curve(to: b, controlPoint1: control, controlPoint2: control)
-            tangentEnd = b
+            tangentEnd = control
 
         case .elbow:
             let corner = NSPoint(x: b.x, y: a.y)
@@ -462,6 +507,7 @@ enum AnnotationRenderer {
             tangentEnd = control2
         }
 
+        applyPattern(pattern, to: path, width: lineWidth)
         path.stroke()
 
         let angle = atan2(b.y - tangentEnd.y, b.x - tangentEnd.x)

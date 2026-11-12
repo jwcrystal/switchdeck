@@ -26,4 +26,18 @@ final class ToolOptionsTests: XCTestCase {
         let paths = [ArrowStyle.straight, .curved, .elbow, .sCurve].map { ArrowOptionIcon(style: $0).path(in: rect).description }
         XCTAssertEqual(Set(paths).count, 4)
     }
+
+    @MainActor
+    func testOptionalVisualSnapshot() throws {
+        guard let path = ProcessInfo.processInfo.environment["SWITCHDECK_UI_SNAPSHOT"] else { return }
+        _ = NSApplication.shared
+        let session = CaptureSession()
+        session.tool = .arrow
+        let host = NSHostingView(rootView: CaptureToolbarView(session: session))
+        host.frame = CGRect(origin: .zero, size: host.fittingSize)
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        try data.write(to: URL(fileURLWithPath: path))
+    }
 }

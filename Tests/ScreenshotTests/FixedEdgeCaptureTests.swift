@@ -3,6 +3,24 @@ import XCTest
 @testable import SwitchDeckApp
 
 final class FixedEdgeCaptureTests: XCTestCase {
+    @MainActor
+    func testBlankMarginsAndRepeatedRowsDoNotOvercountMovement() throws {
+        func frame(offset: Int) throws -> CGImage {
+            let context = try XCTUnwrap(CGContext(data: nil, width: 400, height: 300, bitsPerComponent: 8,
+                bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.translateBy(x: 0, y: 300)
+            context.scaleBy(x: 1, y: -1)
+            context.setFillColor(NSColor.white.cgColor)
+            context.fill(CGRect(x: 0, y: 0, width: 400, height: 300))
+            context.setFillColor(NSColor.darkGray.cgColor)
+            for index in 0..<12 {
+                context.fill(CGRect(x: 20, y: 80 + index * 18 + offset, width: 360, height: 7))
+            }
+            return try XCTUnwrap(context.makeImage())
+        }
+        XCTAssertEqual(ScrollingCapture.debugStitch([try frame(offset: 0), try frame(offset: -40)]), 340)
+    }
+
     static func frame(offset: Int) -> CGImage {
         let width = 640, height = 480
         var data = [UInt8](repeating: 255, count: width * height * 4)

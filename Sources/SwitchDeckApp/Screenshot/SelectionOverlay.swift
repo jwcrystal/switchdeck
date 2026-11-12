@@ -526,7 +526,7 @@ final class SelectionView: NSView {
         session.tool = .select
 
         let global = selection.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
-        let scroll = ScrollingCapture(region: global) { [weak self] in
+        let scroll = ScrollingCapture(region: global, direction: session.scrollingDirection) { [weak self] in
             guard let self else { return nil }
             return await self.captureBase(global, self.screen)
         }
@@ -545,7 +545,7 @@ final class SelectionView: NSView {
         session.toolbarVisible = false
         layoutToolbar()
 
-        let hud = ScrollHUD()
+        let hud = ScrollHUD(direction: session.scrollingDirection)
         hud.onDone = { [weak self] in self?.scrolling?.stop() }
         hud.onCancel = { [weak self] in
             self?.scrollCancelled = true
@@ -1004,6 +1004,7 @@ final class SelectionView: NSView {
                 shape: session.tool == .pen ? .pen(points: penPoints) : .highlighter(points: penPoints),
                 color: session.color,
                 lineWidth: session.lineWidth,
+                linePattern: session.linePattern,
                 highlighterAlpha: session.highlighterAlpha
             )
         case .text, .number:
@@ -1014,7 +1015,8 @@ final class SelectionView: NSView {
                 color: session.color,
                 lineWidth: session.lineWidth,
                 arrowStyle: session.arrowStyle,
-                filled: session.shapeFilled,
+                fillStyle: session.shapeFillStyle,
+                linePattern: session.linePattern,
                 mosaicBlock: session.mosaicBlock,
                 numberStyle: session.numberStyle,
                 highlighterAlpha: session.highlighterAlpha
@@ -1048,7 +1050,8 @@ final class SelectionView: NSView {
             textScale: session.textScale,
             textBubble: session.textBubble,
             arrowStyle: session.arrowStyle,
-            filled: session.shapeFilled,
+            fillStyle: session.shapeFillStyle,
+            linePattern: session.linePattern,
             mosaicBlock: session.mosaicBlock,
             numberStyle: session.numberStyle,
             highlighterAlpha: session.highlighterAlpha

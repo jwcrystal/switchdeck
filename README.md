@@ -50,9 +50,10 @@ Settings › Customize reorders and hides switches; the choice is stored in
 - The region keeps its eight handles while editing, so it can still be resized; while dragging, the live screen shows through and the frozen image is refreshed on release.
 - While selecting, the colour under the pointer is shown with its value and pixel coordinates; `⌥` cycles HEX / RGB / HSL, and `C` copies the value, leaves capture mode and shows a short "Copied …" toast. The readout is hidden once editing starts.
 - The region is frozen the moment editing starts, so mosaic and blur preview exactly what gets saved.
-- Main tools stay on one row. Selecting a drawing tool reveals a compact horizontal icon row immediately below it: color, arrow paths (including an S curve), outline/filled shapes, marker shape, text sizes/bubble and sliders for stroke width, pixel-effect strength or highlighter opacity. Clicking the active tool returns to Select and closes the options row.
+- Main tools stay on one row. Selecting a drawing tool reveals a compact horizontal icon row immediately below it: color, arrow paths (including an S curve), outline/hatched/solid shapes, solid/dashed/dotted strokes, marker shape, text sizes/bubble and sliders for stroke width, pixel-effect strength or highlighter opacity. Clicking the active tool returns to Select and closes the options row.
 - The signature button adds a watermark (the macOS full user name); its popover edits the text, colour, position (four corners, centre or a tiled pattern), size (S/M/L), angle (0/30/45°) and opacity. It is clipped to the capture, so a rotated or tiled watermark never spills outside the selection. The eye-slash button hides it from the image but keeps the text in the PNG metadata.
-- The scroll button starts a scrolling capture. The selected region shows the live page, while the overlay lets the wheel, clicks and drags through to the window below. A small panel with **Done** / **Cancel** tracks the stitched height. Pausing never auto-finishes: press **Done** to save and copy, or **Cancel** to discard. `Enter` / `Esc` also work while SwitchDeck has keyboard focus (vertical only; fixed headers are not detected yet).
+- The scroll button offers **Vertical** or **Horizontal** capture. Scroll down or right in the live selected region; wheel, clicks and drags pass through to the window below. A small panel with **Done** / **Cancel** tracks the stitched length. Pausing never auto-finishes: press **Done** to save and copy, or **Cancel** to discard. `Enter` / `Esc` also work while SwitchDeck has keyboard focus.
+- Unchanged outer strips are detected after a confident match: headers and footers appear once, while sidebars keep their initial controls once and extend their background along the remaining image. Detection covers stationary selection edges, not arbitrary floating widgets, animated or collapsing headers. Diagonal capture is not supported.
 - If the page moves too far to match, the panel shows **Waiting for overlap** instead of appending an uncertain slice. Slowly scroll back until matching resumes, or cancel and retry with a taller selection.
 - `Enter` copies, `Space` saves a PNG straight into ~/Downloads as `SwitchDeck Screenshot <date>.png` (folder and prefix are the UserDefaults keys that Settings will expose), `P` pins on screen, `⌘Z` undoes, `Esc` closes.
 - Pinned images: the corner × or `Esc` closes, scroll resizes, `⌘`-scroll changes opacity, right-click has Copy / 50% Opacity / Close.
@@ -135,7 +136,7 @@ The build is signed with a local self-signed identity (see Permissions below). L
 
 - **M1–M3 — done** — menu, switches, settings, global shortcuts, the hard system integrations.
 - **M4 — done** — setup window and permission status, app icon, stable local signing, About pane.
-- **Screenshot follow-ups** — blur/mosaic, cropping, OCR, scrolling capture, selection handles to adjust the region after capture.
+- **Screenshot follow-ups** — OCR, additional export formats, drag-out to Finder, and handling animated/collapsing headers or floating elements inside the selected region.
 - **Later** — live menu updates while recording, localisation.
 
 ## Why not copy AnySwitch's scripts

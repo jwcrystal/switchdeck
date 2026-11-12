@@ -9,11 +9,13 @@ final class ScrollHUD: NSPanel {
     private let detail = NSTextField(labelWithString: "0 px · scroll, then Done")
     private let doneButton = NSButton(title: "Done", target: nil, action: nil)
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
+    private let captureTitle: String
 
     var onDone: (() -> Void)?
     var onCancel: (() -> Void)?
 
-    init() {
+    init(direction: ScrollingCapture.Direction = .vertical) {
+        captureTitle = direction == .horizontal ? "Horizontal capture" : "Vertical capture"
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 348, height: 52),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -37,6 +39,7 @@ final class ScrollHUD: NSPanel {
         material.layer?.masksToBounds = true
         contentView = material
 
+        titleLabel.stringValue = captureTitle
         titleLabel.font = .systemFont(ofSize: 12, weight: .semibold)
         titleLabel.textColor = .labelColor
         titleLabel.frame = NSRect(x: 14, y: 27, width: 160, height: 16)
@@ -68,7 +71,7 @@ final class ScrollHUD: NSPanel {
     override var canBecomeMain: Bool { false }
 
     func update(height: Int) {
-        titleLabel.stringValue = "Scrolling capture"
+        titleLabel.stringValue = captureTitle
         detail.textColor = .secondaryLabelColor
         detail.stringValue = "\(height) px · scroll, then Done"
     }

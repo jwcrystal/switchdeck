@@ -25,14 +25,9 @@ final class CaptureSession: ObservableObject {
             }
         }
 
-        /// Tools whose variants live in a menu on the tool itself.
+        /// Drawing tools expose the contextual row below the main toolbar.
         var hasOptions: Bool {
-            switch self {
-            case .rectangle, .ellipse, .arrow, .highlighter, .text, .number, .mosaic, .blur:
-                return true
-            case .select, .line, .pen:
-                return false
-            }
+            self != .select
         }
 
         var help: String {
@@ -72,10 +67,12 @@ final class CaptureSession: ObservableObject {
     @Published var textScale: CGFloat = 0.022
     @Published var textBubble = false
     @Published var arrowStyle: ArrowStyle = .straight
-    @Published var shapeFilled = false
+    @Published var shapeFillStyle: ShapeFillStyle = .outline
+    @Published var linePattern: LinePattern = .solid
     @Published var mosaicBlock: CGFloat = 14
     @Published var numberStyle: NumberStyle = .circle
     @Published var highlighterAlpha: CGFloat = 0.32
+    @Published var scrollingDirection: ScrollingCapture.Direction = .vertical
     @Published var annotations: [Annotation] = []
     @Published var watermarkEnabled = false
     @Published var watermarkHidden = false
@@ -132,7 +129,7 @@ struct CaptureToolbarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             mainRow
-            if session.tool != .select {
+            if session.tool.hasOptions {
                 optionsRow
             }
         }
@@ -151,7 +148,22 @@ struct CaptureToolbarView: View {
 
             Divider().frame(height: 18)
 
-            icon("scroll", help: "Scrolling capture", action: session.onScroll)
+            Menu {
+                Button("Vertical scrolling capture") {
+                    session.scrollingDirection = .vertical
+                    session.onScroll()
+                }
+                Button("Horizontal scrolling capture") {
+                    session.scrollingDirection = .horizontal
+                    session.onScroll()
+                }
+            } label: {
+                Image(systemName: "scroll").font(.system(size: 12.5, weight: .medium)).frame(width: 26, height: 26)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Scrolling capture: vertical or horizontal")
+            .accessibilityLabel("Scrolling capture direction")
             icon("arrow.uturn.backward", help: "Undo (⌘Z)", enabled: session.canUndo, action: session.onUndo)
             icon("doc.on.doc", help: "Copy (↩)", action: session.onCopy)
             icon("square.and.arrow.down", help: "Save (Space)", action: session.onSave)
@@ -237,10 +249,15 @@ struct CaptureToolbarView: View {
                         .frame(width: 24, height: 20)
                 }
             }
+            patternControls
             lineWidthSlider
         case .rectangle, .ellipse:
-            optionIcon(tool == .ellipse ? "circle" : "rectangle", "Outline", selected: !session.shapeFilled) { session.shapeFilled = false }
-            optionIcon(tool == .ellipse ? "circle.fill" : "rectangle.fill", "Filled", selected: session.shapeFilled) { session.shapeFilled = true }
+            ForEach(ShapeFillStyle.allCases, id: \.self) { style in
+                optionButton(String(describing: style).capitalized, selected: session.shapeFillStyle == style) { session.shapeFillStyle = style } label: {
+                    FillOptionIcon(style: style, ellipse: tool == .ellipse).frame(width: 20, height: 20)
+                }
+            }
+            patternControls
             lineWidthSlider
         case .text:
             ForEach([CGFloat(0.016), 0.022, 0.030], id: \.self) { size in
@@ -261,6 +278,7 @@ struct CaptureToolbarView: View {
             Image(systemName: "circle.lefthalf.filled").frame(width: 22)
             optionSlider("Opacity", value: $session.highlighterAlpha, range: 0.15...0.7)
         case .line, .pen:
+            patternControls
             lineWidthSlider
         case .select:
             EmptyView()
@@ -272,6 +290,17 @@ struct CaptureToolbarView: View {
             Divider().frame(height: 18)
             Image(systemName: "lineweight").frame(width: 23)
             optionSlider("Line width", value: $session.lineWidth, range: 0.0015...0.016)
+        }
+    }
+
+    private var patternControls: some View {
+        HStack(spacing: 3) {
+            Divider().frame(height: 18)
+            ForEach(LinePattern.allCases, id: \.self) { pattern in
+                optionButton(String(describing: pattern).capitalized + " line", selected: session.linePattern == pattern) { session.linePattern = pattern } label: {
+                    LinePatternIcon(pattern: pattern).frame(width: 22, height: 18)
+                }
+            }
         }
     }
 
