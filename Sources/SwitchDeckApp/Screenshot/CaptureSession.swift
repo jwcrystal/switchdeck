@@ -115,28 +115,25 @@ struct CaptureToolbarView: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            ForEach(CaptureSession.Tool.allCases) { tool in
-                Button {
-                    // Clicking the active tool again cancels it, so the toolbar
-                    // stays optional: no tool means clicks only select/move.
-                    if session.tool == tool, tool != .select {
-                        session.tool = .select
-                    } else {
-                        session.tool = tool
-                    }
-                } label: {
-                    Image(systemName: tool.symbol)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .frame(width: 26, height: 26)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(session.tool == tool ? Color.accentColor.opacity(0.14) : .clear)
-                        )
-                        .foregroundStyle(session.tool == tool ? Color.accentColor : .secondary)
-                }
-                .buttonStyle(.plain)
-                .help(tool.help)
+            Button {
+                session.tool = .select
+            } label: {
+                Image(systemName: "cursorarrow")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .frame(width: 26, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(session.tool == .select ? Color.accentColor.opacity(0.14) : .clear)
+                    )
+                    .foregroundStyle(session.tool == .select ? Color.accentColor : .secondary)
             }
+            .buttonStyle(.plain)
+            .help("Select and move (⌫ deletes)")
+
+            shapesMenu
+            drawMenu
+            textMenu
+            effectsMenu
 
             Divider().frame(height: 18)
 
@@ -159,19 +156,6 @@ struct CaptureToolbarView: View {
 
             thickness(0.003, width: 1.4)
             thickness(0.006, width: 3.0)
-
-            if session.tool == .text {
-                Divider().frame(height: 18)
-                textSizeButton
-                bubbleButton
-            }
-
-            if session.tool == .arrow {
-                Divider().frame(height: 18)
-                arrowStyleButton(.straight, symbol: "arrow.right")
-                arrowStyleButton(.curved, symbol: "arrow.up.right")
-                arrowStyleButton(.elbow, symbol: "arrow.turn.right.down")
-            }
 
             Divider().frame(height: 18)
 
@@ -215,6 +199,109 @@ struct CaptureToolbarView: View {
         }
         .buttonStyle(.plain)
         .help(width < 2 ? "Thin line" : "Thick line")
+    }
+
+    // MARK: - Tool groups
+
+    private var shapesMenu: some View {
+        Menu {
+            ForEach([CaptureSession.Tool.rectangle, .ellipse, .line, .arrow]) { tool in
+                Button {
+                    session.tool = tool
+                } label: {
+                    Label(tool.help, systemImage: tool.symbol)
+                }
+            }
+            Divider()
+            Picker("Arrow style", selection: $session.arrowStyle) {
+                Text("Straight").tag(ArrowStyle.straight)
+                Text("Curved").tag(ArrowStyle.curved)
+                Text("Elbow").tag(ArrowStyle.elbow)
+            }
+        } label: {
+            groupLabel([.rectangle, .ellipse, .line, .arrow], fallback: "rectangle")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Shapes and arrow style")
+    }
+
+    private var drawMenu: some View {
+        Menu {
+            ForEach([CaptureSession.Tool.pen, .highlighter]) { tool in
+                Button {
+                    session.tool = tool
+                } label: {
+                    Label(tool.help, systemImage: tool.symbol)
+                }
+            }
+        } label: {
+            groupLabel([.pen, .highlighter], fallback: "pencil.tip")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Freehand and highlighter")
+    }
+
+    private var textMenu: some View {
+        Menu {
+            ForEach([CaptureSession.Tool.text, .number]) { tool in
+                Button {
+                    session.tool = tool
+                } label: {
+                    Label(tool.help, systemImage: tool.symbol)
+                }
+            }
+            Divider()
+            Picker("Text size", selection: $session.textScale) {
+                Text("Small").tag(CGFloat(0.016))
+                Text("Medium").tag(CGFloat(0.022))
+                Text("Large").tag(CGFloat(0.030))
+            }
+            Toggle("Bubble background", isOn: $session.textBubble)
+        } label: {
+            groupLabel([.text, .number], fallback: "textformat")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Text, numbers, size and bubble")
+    }
+
+    private var effectsMenu: some View {
+        Menu {
+            ForEach([CaptureSession.Tool.mosaic, .blur]) { tool in
+                Button {
+                    session.tool = tool
+                } label: {
+                    Label(tool.help, systemImage: tool.symbol)
+                }
+            }
+        } label: {
+            groupLabel([.mosaic, .blur], fallback: "square.grid.3x3")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Mosaic and blur")
+    }
+
+    private func groupLabel(_ tools: [CaptureSession.Tool], fallback: String) -> some View {
+        let active = tools.contains(session.tool)
+        return HStack(spacing: 1) {
+            Image(systemName: active ? session.tool.symbol : fallback)
+                .font(.system(size: 12.5, weight: .medium))
+            Image(systemName: "chevron.down")
+                .font(.system(size: 7, weight: .bold))
+        }
+        .frame(width: 32, height: 26)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(active ? Color.accentColor.opacity(0.14) : .clear)
+        )
+        .foregroundStyle(active ? Color.accentColor : Color.secondary)
     }
 
     private var textSizeButton: some View {

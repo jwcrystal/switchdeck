@@ -47,7 +47,10 @@ Settings › Customize reorders and hides switches; the choice is stored in
 - Dragging a region enters editing **in place**: the selection stays on screen, everything outside dims, and the toolbar appears under the region — no second window. Clicking a window edits at that window's frame; `F` selects the whole screen; `R` restores the last region.
 - The default tool is Select, so the toolbar is optional: click an active tool again to cancel it and go back to selecting. With a tool active, dragging inside draws:
   -  rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (S/M/L, optional bubble), numbered markers, mosaic and blur.
+- The region keeps its eight handles while editing, so it can still be resized (the frozen image is refreshed).
+- Hovering inside the region shows the colour under the pointer with its hex value; `C` copies it.
 - The region is frozen the moment editing starts, so mosaic and blur preview exactly what gets saved.
+- The toolbar groups tools into Shapes / Draw / Text / Effects menus, so it stays short; `Tab` or the chevron hides it.
 - The signature button adds a watermark (the macOS full user name); its popover edits the text, colour, position (four corners, centre or a tiled pattern), size (S/M/L), angle (0/30/45°) and opacity. It is clipped to the capture, so a rotated or tiled watermark never spills outside the selection. The eye-slash button hides it from the image but keeps the text in the PNG metadata.
 - `Enter` copies, `Space` saves a PNG straight into ~/Downloads as `SwitchDeck Screenshot <date>.png` (folder and prefix are the UserDefaults keys that Settings will expose), `P` pins on screen, `⌘Z` undoes, `Esc` closes.
 - Pinned images: the corner × or `Esc` closes, scroll resizes, `⌘`-scroll changes opacity, right-click has Copy / 50% Opacity / Close.

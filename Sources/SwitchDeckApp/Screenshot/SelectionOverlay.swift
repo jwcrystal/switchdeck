@@ -137,6 +137,9 @@ private final class SelectionView: NSView {
     private var editing = false
     private var baseImage: CGImage?
     private var baseTask: Task<Void, Never>?
+    private var baseRep: NSBitmapImageRep?
+    private var hoverColor: (hex: String, color: NSColor)?
+    private var lastMousePoint: CGPoint = .zero
 
     private var startPoint: CGPoint?
     private var draft: Annotation?
@@ -204,6 +207,8 @@ private final class SelectionView: NSView {
                 AnnotationRenderer.drawWatermark(options, in: selection)
             }
             drawAnnotationSelection(in: selection)
+            drawHandles(for: selection)
+            drawColorReadout()
             let stroke = NSBezierPath(rect: selection)
             stroke.lineWidth = 1
             NSColor.controlAccentColor.withAlphaComponent(0.8).setStroke()
@@ -317,6 +322,74 @@ private final class SelectionView: NSView {
         string.draw(at: origin)
     }
 
+    private func drawColorReadout() {
+        guard let hoverColor else { return }
+        let string = NSAttributedString(
+            string: hoverColor.hex,
+            attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
+                .foregroundColor: NSColor.white,
+            ]
+        )
+        let size = string.size()
+        let boxSize = NSSize(width: size.width + 36, height: 22)
+
+        var origin = NSPoint(
+            x: lastMousePoint.x + 16,
+            y: lastMousePoint.y - boxSize.height - 10
+        )
+        origin.x = min(max(4, origin.x), bounds.width - boxSize.width - 4)
+        origin.y = min(max(4, origin.y), bounds.height - boxSize.height - 4)
+
+        let box = NSRect(origin: origin, size: boxSize)
+        NSColor.black.withAlphaComponent(0.75).setFill()
+        NSBezierPath(roundedRect: box, xRadius: 5, yRadius: 5).fill()
+
+        let swatch = NSRect(x: box.minX + 7, y: box.midY - 5, width: 10, height: 10)
+        hoverColor.color.setFill()
+        NSBezierPath(roundedRect: swatch, xRadius: 2, yRadius: 2).fill()
+        NSColor.white.withAlphaComponent(0.35).setStroke()
+        let border = NSBezierPath(roundedRect: swatch, xRadius: 2, yRadius: 2)
+        border.lineWidth = 1
+        border.stroke()
+
+        string.draw(at: NSPoint(x: box.minX + 23, y: box.midY - size.height / 2))
+    }
+
+    private func updateHoverColor(at point: CGPoint) {
+        guard editing, let selection, let baseImage else {
+            hoverColor = nil
+            return
+        }
+        if let toolbarHost, toolbarHost.frame.contains(point) {
+            hoverColor = nil
+            return
+        }
+        guard selection.contains(point) else {
+            hoverColor = nil
+            return
+        }
+
+        if baseRep == nil {
+            baseRep = NSBitmapImageRep(cgImage: baseImage)
+        }
+        guard let rep = baseRep, rep.pixelsWide > 0, rep.pixelsHigh > 0 else { return }
+
+        let nx = (point.x - selection.minX) / max(1, selection.width)
+        let ny = (selection.maxY - point.y) / max(1, selection.height)
+        let x = min(rep.pixelsWide - 1, max(0, Int(nx * CGFloat(rep.pixelsWide))))
+        let y = min(rep.pixelsHigh - 1, max(0, Int(ny * CGFloat(rep.pixelsHigh))))
+
+        guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { return }
+        let hex = String(
+            format: "#%02X%02X%02X",
+            Int((color.redComponent * 255).rounded()),
+            Int((color.greenComponent * 255).rounded()),
+            Int((color.blueComponent * 255).rounded())
+        )
+        hoverColor = (hex, color)
+    }
+
     private func drawEditingHint() {
         guard let toolbarHost else { return }
         let text = "↩ Copy · Space Save · P Pin · Tab Tools · ⌘Z Undo · Esc Close"
@@ -401,6 +474,7 @@ private final class SelectionView: NSView {
             let image = await self.captureBase(global, self.screen)
             guard !Task.isCancelled else { return }
             self.baseImage = image
+            self.baseRep = nil
             self.needsDisplay = true
         }
     }
@@ -451,6 +525,13 @@ private final class SelectionView: NSView {
                     self.session.annotations.remove(at: index)
                     self.session.selectionIndex = nil
                     self.needsDisplay = true
+                    return nil
+                }
+                return event
+            case 8: // C copies the colour under the cursor
+                if let hoverColor = self.hoverColor {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(hoverColor.hex, forType: .string)
                     return nil
                 }
                 return event
@@ -555,11 +636,15 @@ private final class SelectionView: NSView {
     override func mouseEntered(with event: NSEvent) {
         window?.makeKey()
         window?.makeFirstResponder(self)
-        updateHover(at: convert(event.locationInWindow, from: nil))
+        lastMousePoint = convert(event.locationInWindow, from: nil)
+        updateHoverColor(at: lastMousePoint)
+        updateHover(at: lastMousePoint)
     }
 
     override func mouseMoved(with event: NSEvent) {
-        updateHover(at: convert(event.locationInWindow, from: nil))
+        lastMousePoint = convert(event.locationInWindow, from: nil)
+        updateHoverColor(at: lastMousePoint)
+        updateHover(at: lastMousePoint)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -607,7 +692,9 @@ private final class SelectionView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
+        lastMousePoint = convert(event.locationInWindow, from: nil)
+        updateHoverColor(at: lastMousePoint)
+        let point = lastMousePoint
 
         switch interaction {
         case .creating(let start):

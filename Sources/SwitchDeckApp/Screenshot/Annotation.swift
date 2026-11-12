@@ -2,7 +2,7 @@ import AppKit
 import CoreImage
 import SwiftUI
 
-enum ArrowStyle {
+enum ArrowStyle: Hashable {
     case straight
     case curved
     case elbow
