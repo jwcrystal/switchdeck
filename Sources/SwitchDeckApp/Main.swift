@@ -48,6 +48,11 @@ enum SwitchDeckApp {
             return
         }
 
+        if arguments.contains("--scroll-test") {
+            Dump.scrollTest()
+            return
+        }
+
         let application = NSApplication.shared
         let delegate = AppDelegate()
         application.delegate = delegate
@@ -212,6 +217,43 @@ enum Dump {
         }
 
         RunLoop.main.run()
+    }
+
+    /// Debug: feeds two synthetic frames with a known 40 px scroll to the
+    /// stitching matcher and prints what it detected.
+    @MainActor
+    static func scrollTest() {
+        func frame(offset: Int) -> CGImage? {
+            let width = 400, height = 300
+            guard let context = CGContext(
+                data: nil, width: width, height: height,
+                bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return nil }
+
+            // Top-left drawing so the offsets read like image rows.
+            context.translateBy(x: 0, y: CGFloat(height))
+            context.scaleBy(x: 1, y: -1)
+
+            context.setFillColor(NSColor.white.cgColor)
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            context.setFillColor(NSColor.darkGray.cgColor)
+            for index in 0..<12 {
+                let y = 80 + index * 18 + offset
+                context.fill(CGRect(x: 20, y: y, width: 360, height: 7))
+            }
+            return context.makeImage()
+        }
+
+        guard let a = frame(offset: 0), let b = frame(offset: -40) else {
+            print("failed to build frames")
+            return
+        }
+        let shift = ScrollingCapture.detectShift(from: a, to: b)
+        let height = ScrollingCapture.debugStitch([a, b])
+        print("detected shift: \(shift) (expected 40, content moved up)")
+        print("stitched height: \(height) (expected 340)")
     }
 
     /// Prints which normal window sits under the mouse, using the same

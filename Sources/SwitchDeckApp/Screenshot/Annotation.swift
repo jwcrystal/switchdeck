@@ -6,6 +6,12 @@ enum ArrowStyle: Hashable {
     case straight
     case curved
     case elbow
+    case sCurve
+}
+
+enum NumberStyle: Hashable {
+    case circle
+    case square
 }
 
 /// A mark drawn on top of a screenshot.
@@ -36,6 +42,14 @@ struct Annotation {
     var textBubble: Bool = false
     /// How `.arrow` is drawn.
     var arrowStyle: ArrowStyle = .straight
+    /// Fill rectangles and ellipses instead of only stroking them.
+    var filled: Bool = false
+    /// Mosaic block size in pixels.
+    var mosaicBlock: CGFloat = 14
+    /// Shape of a numbered marker.
+    var numberStyle: NumberStyle = .circle
+    /// Highlighter opacity (0…1).
+    var highlighterAlpha: CGFloat = 0.32
 
     static let palette: [Color] = [.red, .yellow, .blue, .white, .black]
 
@@ -187,7 +201,7 @@ enum AnnotationRenderer {
                 width: abs(b.x - a.x), height: abs(b.y - a.y)
             ))
             path.lineWidth = lineWidth
-            path.stroke()
+            if annotation.filled { path.fill() } else { path.stroke() }
 
         case .ellipse(let start, let end):
             let a = point(start)
@@ -197,7 +211,7 @@ enum AnnotationRenderer {
                 width: abs(b.x - a.x), height: abs(b.y - a.y)
             ))
             path.lineWidth = lineWidth
-            path.stroke()
+            if annotation.filled { path.fill() } else { path.stroke() }
 
         case .line(let start, let end):
             let path = NSBezierPath()
@@ -224,7 +238,7 @@ enum AnnotationRenderer {
 
         case .highlighter(let points):
             guard let first = points.first else { return }
-            color.withAlphaComponent(0.32).setStroke()
+            color.withAlphaComponent(annotation.highlighterAlpha).setStroke()
             let path = NSBezierPath()
             path.lineWidth = max(6, rect.width * 0.02)
             path.lineCapStyle = .round
@@ -239,12 +253,17 @@ enum AnnotationRenderer {
             let center = point(at)
             let radius = max(11, rect.width * 0.014)
             color.setFill()
-            NSBezierPath(ovalIn: NSRect(
+            let box = NSRect(
                 x: center.x - radius,
                 y: center.y - radius,
                 width: radius * 2,
                 height: radius * 2
-            )).fill()
+            )
+            if annotation.numberStyle == .square {
+                NSBezierPath(roundedRect: box, xRadius: radius * 0.4, yRadius: radius * 0.4).fill()
+            } else {
+                NSBezierPath(ovalIn: box).fill()
+            }
 
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: NSFont.boldSystemFont(ofSize: radius * 1.15),
@@ -255,10 +274,10 @@ enum AnnotationRenderer {
             string.draw(at: NSPoint(x: center.x - size.width / 2, y: center.y - size.height / 2))
 
         case .mosaic(let start, let end):
-            drawPixelEffect(start: start, end: end, rect: rect, base: base, blurred: false)
+            drawPixelEffect(start: start, end: end, rect: rect, base: base, blurred: false, block: annotation.mosaicBlock)
 
         case .blur(let start, let end):
-            drawPixelEffect(start: start, end: end, rect: rect, base: base, blurred: true)
+            drawPixelEffect(start: start, end: end, rect: rect, base: base, blurred: true, block: annotation.mosaicBlock)
 
         case .text(let text, let at):
             let fontSize = max(12, rect.width * annotation.textScale)
@@ -432,6 +451,15 @@ enum AnnotationRenderer {
             path.line(to: corner)
             path.line(to: b)
             tangentEnd = corner
+
+        case .sCurve:
+            let dx = b.x - a.x
+            let dy = b.y - a.y
+            let control1 = NSPoint(x: a.x + dx * 0.15, y: a.y + dy * 0.75)
+            let control2 = NSPoint(x: a.x + dx * 0.85, y: a.y + dy * 0.25)
+            path.move(to: a)
+            path.curve(to: b, controlPoint1: control1, controlPoint2: control2)
+            tangentEnd = control2
         }
 
         path.stroke()
@@ -464,7 +492,8 @@ enum AnnotationRenderer {
         end: CGPoint,
         rect: CGRect,
         base: CGImage?,
-        blurred: Bool
+        blurred: Bool,
+        block: CGFloat
     ) {
         let a = NSPoint(x: rect.minX + start.x * rect.width, y: rect.maxY - start.y * rect.height)
         let b = NSPoint(x: rect.minX + end.x * rect.width, y: rect.maxY - end.y * rect.height)
@@ -498,7 +527,7 @@ enum AnnotationRenderer {
             guard let image = CIContext().createCGImage(output, from: input.extent) else { return }
             NSImage(cgImage: image, size: target.size).draw(in: target)
         } else {
-            let blocks = max(2, Int(cropRect.width / 14))
+            let blocks = max(2, Int(cropRect.width / max(4, block)))
             let blocksHigh = max(1, Int(CGFloat(blocks) * cropRect.height / max(1, cropRect.width)))
             let small = NSImage(size: NSSize(width: blocks, height: blocksHigh))
             small.lockFocus()

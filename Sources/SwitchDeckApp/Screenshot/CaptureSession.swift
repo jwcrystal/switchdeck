@@ -62,6 +62,10 @@ final class CaptureSession: ObservableObject {
     @Published var textScale: CGFloat = 0.022
     @Published var textBubble = false
     @Published var arrowStyle: ArrowStyle = .straight
+    @Published var shapeFilled = false
+    @Published var mosaicBlock: CGFloat = 14
+    @Published var numberStyle: NumberStyle = .circle
+    @Published var highlighterAlpha: CGFloat = 0.32
     @Published var annotations: [Annotation] = []
     @Published var watermarkEnabled = false
     @Published var watermarkHidden = false
@@ -89,6 +93,7 @@ final class CaptureSession: ObservableObject {
     }
 
     var onUndo: () -> Void = {}
+    var onScroll: () -> Void = {}
     var onCopy: () -> Void = {}
     var onSave: () -> Void = {}
     var onPin: () -> Void = {}
@@ -168,12 +173,33 @@ struct CaptureToolbarView: View {
                 textOptionsMenu
             }
 
+            if session.tool == .rectangle || session.tool == .ellipse {
+                Divider().frame(height: 18)
+                shapeOptionsMenu
+            }
+
+            if session.tool == .mosaic || session.tool == .blur {
+                Divider().frame(height: 18)
+                mosaicOptionsMenu
+            }
+
+            if session.tool == .number {
+                Divider().frame(height: 18)
+                numberOptionsMenu
+            }
+
+            if session.tool == .highlighter {
+                Divider().frame(height: 18)
+                highlighterOptionsMenu
+            }
+
             Divider().frame(height: 18)
 
             watermarkButton
 
             Divider().frame(height: 18)
 
+            icon("scroll", help: "Scrolling capture", action: session.onScroll)
             icon("arrow.uturn.backward", help: "Undo (⌘Z)", enabled: session.canUndo, action: session.onUndo)
             icon("doc.on.doc", help: "Copy (↩)", action: session.onCopy)
             icon("square.and.arrow.down", help: "Save (Space)", action: session.onSave)
@@ -218,6 +244,7 @@ struct CaptureToolbarView: View {
         case .straight: return "arrow.right"
         case .curved: return "arrow.up.right"
         case .elbow: return "arrow.turn.right.down"
+        case .sCurve: return "arrow.up.forward"
         }
     }
 
@@ -227,6 +254,7 @@ struct CaptureToolbarView: View {
                 Text("Straight").tag(ArrowStyle.straight)
                 Text("Curved").tag(ArrowStyle.curved)
                 Text("Elbow").tag(ArrowStyle.elbow)
+                Text("S curve").tag(ArrowStyle.sCurve)
             }
         } label: {
             optionLabel(arrowSymbol)
@@ -252,6 +280,59 @@ struct CaptureToolbarView: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Text size and bubble")
+    }
+
+    private var shapeOptionsMenu: some View {
+        Menu {
+            Toggle("Filled", isOn: $session.shapeFilled)
+        } label: {
+            optionLabel(session.shapeFilled ? "square.fill" : "square")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Fill or stroke")
+    }
+
+    private var mosaicOptionsMenu: some View {
+        Menu {
+            Button("Fine") { session.mosaicBlock = 8 }
+            Button("Medium") { session.mosaicBlock = 14 }
+            Button("Coarse") { session.mosaicBlock = 24 }
+        } label: {
+            optionLabel("square.grid.3x3")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Mosaic strength")
+    }
+
+    private var numberOptionsMenu: some View {
+        Menu {
+            Button("Circle") { session.numberStyle = .circle }
+            Button("Square") { session.numberStyle = .square }
+        } label: {
+            optionLabel(session.numberStyle == .circle ? "circle" : "square")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Marker shape")
+    }
+
+    private var highlighterOptionsMenu: some View {
+        Menu {
+            Button("Light") { session.highlighterAlpha = 0.2 }
+            Button("Medium") { session.highlighterAlpha = 0.32 }
+            Button("Strong") { session.highlighterAlpha = 0.55 }
+        } label: {
+            optionLabel("circle.lefthalf.filled")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Highlighter opacity")
     }
 
     private func optionLabel(_ symbol: String) -> some View {

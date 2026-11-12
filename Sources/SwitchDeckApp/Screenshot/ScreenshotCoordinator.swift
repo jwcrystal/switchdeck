@@ -156,46 +156,9 @@ final class ScreenshotCoordinator {
     }
 
     private func save(_ image: NSImage, watermark: AnnotationRenderer.WatermarkOptions?) {
-        let folder = ScreenshotStorage.folder
-        do {
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        } catch {
-            present(error)
+        guard ScreenshotSaver.save(image, watermark: watermark) != nil else {
+            present(ScreenCaptureService.CaptureError.captureFailed("The PNG could not be written to ~/Downloads."))
             return
-        }
-
-        let url = folder.appendingPathComponent(ScreenshotStorage.fileName())
-
-        // A watermark that is hidden still lives on in the file metadata.
-        if let watermark,
-           let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
-           let destination = CGImageDestinationCreateWithURL(
-               url as CFURL,
-               UTType.png.identifier as CFString,
-               1,
-               nil
-           ) {
-            let properties: [CFString: Any] = [kCGImagePropertyPNGDescription: watermark.text]
-            CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
-            guard CGImageDestinationFinalize(destination) else {
-                present(ScreenCaptureService.CaptureError.captureFailed("The PNG could not be written."))
-                return
-            }
-            return
-        }
-
-        guard let tiff = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff),
-              let data = rep.representation(using: .png, properties: [:])
-        else {
-            present(ScreenCaptureService.CaptureError.captureFailed("The image could not be encoded as PNG."))
-            return
-        }
-
-        do {
-            try data.write(to: url)
-        } catch {
-            present(error)
         }
     }
 
@@ -224,7 +187,6 @@ final class ScreenshotCoordinator {
         content.imageView.image = image
         content.onClose = { [weak window] in window?.close() }
         window.contentView = content
-        window.onClose = { [weak window] in window?.close() }
 
         let origin = NSPoint(
             x: screen.visibleFrame.midX - size.width / 2,
@@ -269,35 +231,9 @@ final class ScreenshotCoordinator {
     }
 }
 
-/// Where saves go. Defaults to ~/Downloads with a project prefix; both can be
-/// overridden later from Settings via these two UserDefaults keys.
-private enum ScreenshotStorage {
-    static var folder: URL {
-        if let path = UserDefaults.standard.string(forKey: "ScreenshotFolder"), !path.isEmpty {
-            return URL(fileURLWithPath: path, isDirectory: true)
-        }
-        return FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads")
-    }
-
-    static var prefix: String {
-        let stored = UserDefaults.standard.string(forKey: "ScreenshotFilenamePrefix") ?? "SwitchDeck"
-        return stored.trimmingCharacters(in: .whitespaces)
-    }
-
-    static func fileName() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-        let base = "Screenshot \(formatter.string(from: Date())).png"
-        return prefix.isEmpty ? base : "\(prefix) \(base)"
-    }
-}
-
 /// A pinned screenshot: scroll resizes it, ⌘-scroll changes opacity, Esc or the
 /// corner button closes it.
 private final class PinnedWindow: NSWindow {
-    var onClose: (() -> Void)?
-
     override var canBecomeKey: Bool { true }
 
     override func keyDown(with event: NSEvent) {

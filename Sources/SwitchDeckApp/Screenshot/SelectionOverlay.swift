@@ -144,6 +144,8 @@ private final class SelectionView: NSView {
     private var optionHeld = false
     private enum ColorFormat: Int { case hex, rgb, hsl }
     private var colorFormat: ColorFormat = .hex
+    private var scrolling: ScrollingCapture?
+    private var scrollCancelled = false
     private var lastMousePoint: CGPoint = .zero
 
     private var startPoint: CGPoint?
@@ -358,15 +360,30 @@ private final class SelectionView: NSView {
 
     private func drawColorReadout() {
         guard let hoverColor else { return }
-        let string = NSAttributedString(
+
+        let value = NSAttributedString(
             string: colorText(hoverColor),
             attributes: [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
                 .foregroundColor: NSColor.white,
             ]
         )
-        let size = string.size()
-        let boxSize = NSSize(width: size.width + 36, height: 22)
+        let scale = screen.backingScaleFactor
+        let coords = String(
+            format: "%d, %d",
+            Int((lastMousePoint.x * scale).rounded()),
+            Int(((screen.frame.height - lastMousePoint.y) * scale).rounded())
+        )
+        let coordinateText = NSAttributedString(
+            string: coords,
+            attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .regular),
+                .foregroundColor: NSColor.white.withAlphaComponent(0.6),
+            ]
+        )
+
+        let size = value.size()
+        let boxSize = NSSize(width: size.width + 36, height: 36)
 
         var origin = NSPoint(
             x: lastMousePoint.x + 16,
@@ -387,7 +404,8 @@ private final class SelectionView: NSView {
         border.lineWidth = 1
         border.stroke()
 
-        string.draw(at: NSPoint(x: box.minX + 23, y: box.midY - size.height / 2))
+        value.draw(at: NSPoint(x: box.minX + 23, y: box.maxY - size.height - 6))
+        coordinateText.draw(at: NSPoint(x: box.minX + 23, y: box.minY + 5))
     }
 
     private func colorText(_ color: NSColor) -> String {
@@ -484,6 +502,73 @@ private final class SelectionView: NSView {
         hoverColor = color
     }
 
+    // MARK: - Scrolling capture
+
+    private func startScrolling() {
+        guard scrolling == nil, let selection else { return }
+        scrollCancelled = false
+        session.tool = .select
+
+        let global = selection.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
+        let scroll = ScrollingCapture(region: global) { [weak self] in
+            guard let self else { return nil }
+            return await self.captureBase(global, self.screen)
+        }
+        scroll.onUpdate = { [weak self] in self?.needsDisplay = true }
+        scroll.onFinish = { [weak self] image in self?.finishScrolling(image) }
+
+        scrolling = scroll
+        session.toolbarVisible = false
+        layoutToolbar()
+        scroll.start()
+        needsDisplay = true
+    }
+
+    private func finishScrolling(_ image: CGImage?) {
+        guard scrolling != nil else { return }
+        scrolling = nil
+        session.toolbarVisible = true
+        layoutToolbar()
+        needsDisplay = true
+
+        guard !scrollCancelled, let image else {
+            onCancel?()
+            return
+        }
+
+        let nsImage = NSImage(
+            cgImage: image,
+            size: NSSize(width: image.width, height: image.height)
+        )
+        ScreenshotSaver.save(nsImage)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([nsImage])
+        ColorToast.show("Scrolling screenshot saved to Downloads")
+        onCancel?()
+    }
+
+    private func drawScrollingHUD() {
+        guard let scrolling else { return }
+        let text = "Scrolling… \(scrolling.totalHeight) px · Enter to finish · Esc to cancel"
+        let string = NSAttributedString(
+            string: text,
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 13, weight: .medium),
+                .foregroundColor: NSColor.white,
+            ]
+        )
+        let size = string.size()
+        let box = NSRect(
+            x: bounds.midX - (size.width + 28) / 2,
+            y: bounds.minY + 42,
+            width: size.width + 28,
+            height: size.height + 16
+        )
+        NSColor.black.withAlphaComponent(0.6).setFill()
+        NSBezierPath(roundedRect: box, xRadius: 8, yRadius: 8).fill()
+        string.draw(at: NSPoint(x: box.minX + 14, y: box.minY + 8))
+    }
+
     private func drawEditingHint() {
         guard let toolbarHost else { return }
         let text = "↩ Copy · Space Save · P Pin · Tab Tools · ⌘Z Undo · Esc Close"
@@ -545,6 +630,7 @@ private final class SelectionView: NSView {
         session.onSave = { [weak self] in self?.finish(.save) }
         session.onPin = { [weak self] in self?.finish(.pin) }
         session.onClose = { [weak self] in self?.onCancel?() }
+        session.onScroll = { [weak self] in self?.startScrolling() }
 
         installToolbar()
         installKeyMonitor()
@@ -587,13 +673,27 @@ private final class SelectionView: NSView {
             }
             if self.window?.firstResponder is NSTextView { return event }
 
+            if self.scrolling != nil {
+                switch event.keyCode {
+                case 36, 76:
+                    self.scrolling?.stop()
+                    return nil
+                case 53:
+                    self.scrollCancelled = true
+                    self.scrolling?.stop()
+                    return nil
+                default:
+                    return event
+                }
+            }
+
             // Colour picking only exists while framing the region.
             if event.keyCode == 8, !self.editing {
                 if let hoverColor = self.hoverColor {
                     let text = self.colorText(hoverColor)
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(text, forType: .string)
-                    ColorToast.show(text)
+                    ColorToast.show("Copied \(text)")
                     self.onCancel?()
                     return nil
                 }
@@ -745,6 +845,7 @@ private final class SelectionView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        if scrolling != nil { return }
         window?.makeKey()
         window?.makeFirstResponder(self)
         let point = convert(event.locationInWindow, from: nil)
@@ -887,7 +988,8 @@ private final class SelectionView: NSView {
             draft = Annotation(
                 shape: session.tool == .pen ? .pen(points: penPoints) : .highlighter(points: penPoints),
                 color: session.color,
-                lineWidth: session.lineWidth
+                lineWidth: session.lineWidth,
+                highlighterAlpha: session.highlighterAlpha
             )
         case .text, .number:
             break
@@ -895,7 +997,11 @@ private final class SelectionView: NSView {
             draft = Annotation(
                 shape: draftShape(from: start, to: current),
                 color: session.color,
-                lineWidth: session.lineWidth
+                lineWidth: session.lineWidth,
+                filled: session.shapeFilled,
+                mosaicBlock: session.mosaicBlock,
+                numberStyle: session.numberStyle,
+                highlighterAlpha: session.highlighterAlpha
             )
         }
     }
@@ -925,7 +1031,11 @@ private final class SelectionView: NSView {
             lineWidth: session.lineWidth,
             textScale: session.textScale,
             textBubble: session.textBubble,
-            arrowStyle: session.arrowStyle
+            arrowStyle: session.arrowStyle,
+            filled: session.shapeFilled,
+            mosaicBlock: session.mosaicBlock,
+            numberStyle: session.numberStyle,
+            highlighterAlpha: session.highlighterAlpha
         ))
     }
 
@@ -1216,7 +1326,7 @@ enum ColorToast {
     private static var windows: [NSWindow] = []
 
     static func show(_ text: String) {
-        let label = NSTextField(labelWithString: "Copied \(text)")
+        let label = NSTextField(labelWithString: text)
         label.font = .systemFont(ofSize: 13, weight: .medium)
         label.textColor = .white
         label.sizeToFit()
