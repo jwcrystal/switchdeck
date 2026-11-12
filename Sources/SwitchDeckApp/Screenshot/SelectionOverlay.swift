@@ -38,6 +38,7 @@ final class SelectionController {
             window.contentView = view
             window.makeKeyAndOrderFront(nil)
             windows.append(window)
+            view.prepareSample()
 
             if let initialSelection {
                 let local = initialSelection.offsetBy(
@@ -137,8 +138,10 @@ private final class SelectionView: NSView {
     private var editing = false
     private var baseImage: CGImage?
     private var baseTask: Task<Void, Never>?
-    private var baseRep: NSBitmapImageRep?
-    private var hoverColor: (hex: String, color: NSColor)?
+    private var sampleImage: CGImage?
+    private var sampleRep: NSBitmapImageRep?
+    private var hoverColor: NSColor?
+    private var optionHeld = false
     private var lastMousePoint: CGPoint = .zero
 
     private var startPoint: CGPoint?
@@ -195,20 +198,29 @@ private final class SelectionView: NSView {
 
         guard let selection else {
             drawHint("Drag to select · click a window · F for the whole screen · R for last region")
+            drawColorReadout()
+            drawColorHint()
             return
         }
 
         if editing {
-            if let baseImage {
-                NSImage(cgImage: baseImage, size: selection.size).draw(in: selection)
+            let resizing: Bool = {
+                if case .resizing = interaction { return true }
+                return false
+            }()
+
+            if !resizing {
+                if let baseImage {
+                    NSImage(cgImage: baseImage, size: selection.size).draw(in: selection)
+                }
+                drawAnnotations(in: selection)
+                if let options = session.watermarkOptions, !session.watermarkHidden {
+                    AnnotationRenderer.drawWatermark(options, in: selection)
+                }
+                drawAnnotationSelection(in: selection)
             }
-            drawAnnotations(in: selection)
-            if let options = session.watermarkOptions, !session.watermarkHidden {
-                AnnotationRenderer.drawWatermark(options, in: selection)
-            }
-            drawAnnotationSelection(in: selection)
+
             drawHandles(for: selection)
-            drawColorReadout()
             let stroke = NSBezierPath(rect: selection)
             stroke.lineWidth = 1
             NSColor.controlAccentColor.withAlphaComponent(0.8).setStroke()
@@ -224,6 +236,9 @@ private final class SelectionView: NSView {
             drawLabel(sizeText(for: selection), above: selection)
             drawHint("Enter or drag to edit · R reuses the last region · Esc cancels")
         }
+
+        drawColorReadout()
+        drawColorHint()
     }
 
     private func drawAnnotations(in rect: CGRect) {
@@ -322,10 +337,25 @@ private final class SelectionView: NSView {
         string.draw(at: origin)
     }
 
+    private func drawColorHint() {
+        let string = NSAttributedString(
+            string: "C Copy colour · ⌥ Switch HEX/RGB",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+                .foregroundColor: NSColor.white.withAlphaComponent(0.8),
+            ]
+        )
+        let size = string.size()
+        let box = NSRect(x: 12, y: 12, width: size.width + 20, height: size.height + 10)
+        NSColor.black.withAlphaComponent(0.5).setFill()
+        NSBezierPath(roundedRect: box, xRadius: 6, yRadius: 6).fill()
+        string.draw(at: NSPoint(x: box.minX + 10, y: box.minY + 5))
+    }
+
     private func drawColorReadout() {
         guard let hoverColor else { return }
         let string = NSAttributedString(
-            string: hoverColor.hex,
+            string: colorText(hoverColor),
             attributes: [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
                 .foregroundColor: NSColor.white,
@@ -346,7 +376,7 @@ private final class SelectionView: NSView {
         NSBezierPath(roundedRect: box, xRadius: 5, yRadius: 5).fill()
 
         let swatch = NSRect(x: box.minX + 7, y: box.midY - 5, width: 10, height: 10)
-        hoverColor.color.setFill()
+        hoverColor.setFill()
         NSBezierPath(roundedRect: swatch, xRadius: 2, yRadius: 2).fill()
         NSColor.white.withAlphaComponent(0.35).setStroke()
         let border = NSBezierPath(roundedRect: swatch, xRadius: 2, yRadius: 2)
@@ -356,8 +386,35 @@ private final class SelectionView: NSView {
         string.draw(at: NSPoint(x: box.minX + 23, y: box.midY - size.height / 2))
     }
 
+    private func colorText(_ color: NSColor) -> String {
+        let r = Int((color.redComponent * 255).rounded())
+        let g = Int((color.greenComponent * 255).rounded())
+        let b = Int((color.blueComponent * 255).rounded())
+        if optionHeld {
+            return "R\(r) G\(g) B\(b)"
+        }
+        return String(format: "#%02X%02X%02X", r, g, b)
+    }
+
+    func prepareSample() {
+        guard sampleImage == nil else { return }
+        let frame = screen.frame
+        Task { [weak self] in
+            guard let self, let image = await self.captureBase(frame, self.screen) else { return }
+            self.sampleImage = image
+            self.sampleRep = nil
+            self.updateHoverColor(at: self.lastMousePoint)
+            self.needsDisplay = true
+        }
+    }
+
+    override func flagsChanged(with event: NSEvent) {
+        optionHeld = event.modifierFlags.contains(.option)
+        needsDisplay = true
+    }
+
     private func updateHoverColor(at point: CGPoint) {
-        guard editing, let selection, let baseImage else {
+        guard let sampleImage else {
             hoverColor = nil
             return
         }
@@ -365,29 +422,23 @@ private final class SelectionView: NSView {
             hoverColor = nil
             return
         }
-        guard selection.contains(point) else {
+        if editing, let selection, !selection.contains(point) {
             hoverColor = nil
             return
         }
 
-        if baseRep == nil {
-            baseRep = NSBitmapImageRep(cgImage: baseImage)
+        if sampleRep == nil {
+            sampleRep = NSBitmapImageRep(cgImage: sampleImage)
         }
-        guard let rep = baseRep, rep.pixelsWide > 0, rep.pixelsHigh > 0 else { return }
+        guard let rep = sampleRep, rep.pixelsWide > 0, rep.pixelsHigh > 0 else { return }
 
-        let nx = (point.x - selection.minX) / max(1, selection.width)
-        let ny = (selection.maxY - point.y) / max(1, selection.height)
-        let x = min(rep.pixelsWide - 1, max(0, Int(nx * CGFloat(rep.pixelsWide))))
-        let y = min(rep.pixelsHigh - 1, max(0, Int(ny * CGFloat(rep.pixelsHigh))))
+        let scaleX = CGFloat(rep.pixelsWide) / max(1, screen.frame.width)
+        let scaleY = CGFloat(rep.pixelsHigh) / max(1, screen.frame.height)
+        let x = min(rep.pixelsWide - 1, max(0, Int(point.x * scaleX)))
+        let y = min(rep.pixelsHigh - 1, max(0, Int((screen.frame.height - point.y) * scaleY)))
 
         guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { return }
-        let hex = String(
-            format: "#%02X%02X%02X",
-            Int((color.redComponent * 255).rounded()),
-            Int((color.greenComponent * 255).rounded()),
-            Int((color.blueComponent * 255).rounded())
-        )
-        hoverColor = (hex, color)
+        hoverColor = color
     }
 
     private func drawEditingHint() {
@@ -474,7 +525,6 @@ private final class SelectionView: NSView {
             let image = await self.captureBase(global, self.screen)
             guard !Task.isCancelled else { return }
             self.baseImage = image
-            self.baseRep = nil
             self.needsDisplay = true
         }
     }
@@ -531,7 +581,7 @@ private final class SelectionView: NSView {
             case 8: // C copies the colour under the cursor
                 if let hoverColor = self.hoverColor {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(hoverColor.hex, forType: .string)
+                    NSPasteboard.general.setString(self.colorText(hoverColor), forType: .string)
                     return nil
                 }
                 return event
