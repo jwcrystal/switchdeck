@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 @MainActor
 final class EditorModel: ObservableObject {
     enum Tool: String, CaseIterable, Identifiable {
-        case rectangle, ellipse, line, arrow, pen, highlighter, text, number, mosaic
+        case rectangle, ellipse, line, arrow, pen, highlighter, text, number, mosaic, blur
 
         var id: String { rawValue }
 
@@ -20,6 +20,7 @@ final class EditorModel: ObservableObject {
             case .text: return "textformat"
             case .number: return "number.circle"
             case .mosaic: return "square.grid.3x3"
+            case .blur: return "aqi.medium"
             }
         }
 
@@ -34,6 +35,7 @@ final class EditorModel: ObservableObject {
             case .text: return "Text"
             case .number: return "Number"
             case .mosaic: return "Mosaic"
+            case .blur: return "Blur"
             }
         }
     }
@@ -45,6 +47,9 @@ final class EditorModel: ObservableObject {
 
     let image: CGImage
     let preview: NSImage
+    /// Base image plus every committed annotation. The view shows this, so a
+    /// mosaic or blur looks exactly like what gets saved.
+    @Published private(set) var composed: NSImage
 
     @Published var annotations: [Annotation] = []
     @Published var tool: Tool = .rectangle
@@ -58,10 +63,12 @@ final class EditorModel: ObservableObject {
 
     init(image: CGImage) {
         self.image = image
-        self.preview = NSImage(
+        let base = NSImage(
             cgImage: image,
             size: NSSize(width: image.width, height: image.height)
         )
+        self.preview = base
+        self.composed = base
     }
 
     var pixelSize: CGSize {
@@ -75,11 +82,17 @@ final class EditorModel: ObservableObject {
         if case .number = shape {
             nextNumber += 1
         }
+        refreshComposed()
     }
 
     func undo() {
         guard !annotations.isEmpty else { return }
         annotations.removeLast()
+        refreshComposed()
+    }
+
+    private func refreshComposed() {
+        composed = AnnotationRenderer.render(base: image, annotations: annotations)
     }
 
     func commitText() {
@@ -94,7 +107,7 @@ final class EditorModel: ObservableObject {
     // MARK: - Output
 
     func composedImage() -> NSImage {
-        AnnotationRenderer.render(base: image, annotations: annotations)
+        composed
     }
 
     func copyToPasteboard() {
@@ -316,7 +329,7 @@ struct ScreenshotEditorView: View {
             ZStack {
                 Color(nsColor: .underPageBackgroundColor)
 
-                Image(nsImage: model.preview)
+                Image(nsImage: model.composed)
                     .resizable()
                     .frame(width: fitted.width, height: fitted.height)
                     .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
@@ -363,9 +376,6 @@ private struct AnnotationCanvas: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             Canvas { context, size in
-                for annotation in model.annotations {
-                    draw(annotation, in: &context, size: size)
-                }
                 if let draft = model.draft {
                     draw(draft, in: &context, size: size)
                 }
@@ -458,6 +468,7 @@ private struct AnnotationCanvas: View {
         case .ellipse: return .ellipse(from: start, to: end)
         case .line: return .line(from: start, to: end)
         case .mosaic: return .mosaic(from: start, to: end)
+        case .blur: return .blur(from: start, to: end)
         default: return .arrow(from: start, to: end)
         }
     }
@@ -553,6 +564,13 @@ private struct AnnotationCanvas: View {
             let rect = CGRect(x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y).standardized
             context.fill(Path(rect), with: .color(.gray.opacity(0.85)))
             context.stroke(Path(rect), with: .color(.white.opacity(0.35)), lineWidth: 1)
+
+        case .blur(let from, let to):
+            let a = scale(from)
+            let b = scale(to)
+            let rect = CGRect(x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y).standardized
+            context.fill(Path(rect), with: .color(.white.opacity(0.35)))
+            context.stroke(Path(rect), with: .color(.white.opacity(0.55)), lineWidth: 1)
 
         case .text(let text, let at):
             let resolved = context.resolve(

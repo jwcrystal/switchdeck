@@ -33,7 +33,7 @@ Milestones M1–M4 are done: sixteen switches, the menu-bar UI, global shortcuts
 | Empty Trash | Finder AppleScript: `count items in trash`, `empty trash` | Needs Automation; direct `~/.Trash` reads are blocked by TCC |
 | Empty Pasteboard | `NSPasteboard.clearContents()` | |
 | Recording | `AVAudioRecorder` to `~/Music/SwitchDeck`, elapsed time in the menu | Needs Microphone |
-| Screenshot | ScreenCaptureKit region/window/full-screen capture; borderless editor with rectangle, ellipse, line, arrow, pen, highlighter, text, numbering and mosaic; copy, save, pin | Needs Screen Recording |
+| Screenshot | ScreenCaptureKit region/window/full-screen capture; borderless editor with rectangle, ellipse, line, arrow, pen, highlighter, text, numbering, mosaic and blur; copy, save, pin | Needs Screen Recording |
 | Hide Windows | `NSRunningApplication.hide()`, skips Finder and SwitchDeck | Reversible: click the app in the Dock |
 | Quit All Apps | `NSRunningApplication.terminate()`, skips Finder and SwitchDeck | Unsaved work still prompts |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, counts removable volumes | |
@@ -44,7 +44,7 @@ Settings › Customize reorders and hides switches; the choice is stored in
 ## Screenshot
 
 - `⌥E` starts a capture (installed once as a default; change it in Settings › Shortcuts).
-- In the overlay: drag selects a region, a click captures the window under the pointer, `F` or `Enter` captures the whole screen, `R` reuses the last region, `Esc` cancels.
+- In the overlay: drag selects a region, then the eight handles resize it and dragging inside moves it; `Enter` or a double click captures, a click captures the window under the pointer, `F` captures the whole screen, `R` reuses the last region, `Esc` clears or cancels.
 - In the editor: `Enter` copies, `Space` saves a PNG, `P` pins the image on screen, `⌘Z` undoes, `Esc` closes. The bar has rectangle, ellipse, line, arrow, freehand, highlighter, text, numbered markers and mosaic.
 
 ## Global shortcuts (M2)

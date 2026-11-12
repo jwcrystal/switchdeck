@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage
 import SwiftUI
 
 /// A mark drawn on top of a screenshot.
@@ -15,6 +16,7 @@ struct Annotation {
         case highlighter(points: [CGPoint])
         case number(Int, at: CGPoint)
         case mosaic(from: CGPoint, to: CGPoint)
+        case blur(from: CGPoint, to: CGPoint)
         case text(String, at: CGPoint)
     }
 
@@ -166,6 +168,35 @@ enum AnnotationRenderer {
             NSGraphicsContext.current?.imageInterpolation = .none
             small.draw(in: rect)
             NSGraphicsContext.current?.imageInterpolation = .high
+
+        case .blur(let start, let end):
+            let a = point(start)
+            let b = point(end)
+            let rect = NSRect(
+                x: min(a.x, b.x),
+                y: min(a.y, b.y),
+                width: abs(b.x - a.x),
+                height: abs(b.y - a.y)
+            )
+            guard rect.width > 2, rect.height > 2, let base else { return }
+
+            let cropRect = CGRect(
+                x: min(start.x, end.x) * width,
+                y: min(start.y, end.y) * height,
+                width: abs(end.x - start.x) * width,
+                height: abs(end.y - start.y) * height
+            )
+            guard let crop = base.cropping(to: cropRect) else { return }
+
+            let input = CIImage(cgImage: crop)
+            let radius = max(6, cropRect.width * 0.012)
+            let output = input
+                .clampedToExtent()
+                .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: radius])
+                .cropped(to: input.extent)
+
+            guard let blurred = CIContext().createCGImage(output, from: input.extent) else { return }
+            NSImage(cgImage: blurred, size: rect.size).draw(in: rect)
 
         case .pen(let points):
             guard let first = points.first else { return }

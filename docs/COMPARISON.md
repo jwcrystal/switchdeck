@@ -24,7 +24,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Empty Trash | Finder AppleScript, top-level item count |
 | Empty Pasteboard | `NSPasteboard` |
 | Recording | `AVAudioRecorder` to `~/Music/SwitchDeck` |
-| Screenshot | ScreenCaptureKit; borderless editor (rect, ellipse, line, arrow, pen, highlighter, text, number, mosaic), copy/save/pin |
+| Screenshot | ScreenCaptureKit; borderless editor (rect, ellipse, line, arrow, pen, highlighter, text, number, mosaic, blur); adjustable selection, copy/save/pin |
 | Hide Windows | `NSRunningApplication.hide()`, fully reversible |
 | Quit All Apps | `NSRunningApplication.terminate()` |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, all removable volumes |

@@ -5,7 +5,8 @@ enum CaptureRequest {
     case window(id: CGWindowID)
 }
 
-/// Dims every display and turns the next drag or click into a capture request.
+/// Dims every display, lets the user shape a region with handles, then turns
+/// Enter (or a double click) into a capture request.
 @MainActor
 final class SelectionController {
     private var windows: [SelectionWindow] = []
@@ -78,12 +79,28 @@ private final class SelectionWindow: NSWindow {
 }
 
 private final class SelectionView: NSView {
+    private enum Handle: CaseIterable {
+        case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
+    }
+
+    private enum Interaction {
+        case none
+        case creating(start: CGPoint)
+        case moving(start: CGPoint, rect: CGRect)
+        case resizing(handle: Handle, rect: CGRect)
+
+        var isIdle: Bool {
+            if case .none = self { return true }
+            return false
+        }
+    }
+
     let screen: NSScreen
     var onSelect: ((CaptureRequest) -> Void)?
     var onCancel: (() -> Void)?
 
-    private var dragStart: CGPoint?
-    private var dragCurrent: CGPoint?
+    private var selection: CGRect?
+    private var interaction: Interaction = .none
     private var hovered: (id: CGWindowID, rect: CGRect)?
 
     init(screen: NSScreen) {
@@ -118,30 +135,43 @@ private final class SelectionView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let path = NSBezierPath(rect: bounds)
-        if let selection = selectionRect, selection.width > 1, selection.height > 1 {
+        if let selection, selection.width > 1, selection.height > 1 {
             path.append(NSBezierPath(rect: selection))
             path.windingRule = .evenOdd
         }
         NSColor.black.withAlphaComponent(0.32).setFill()
         path.fill()
 
-        if let selection = selectionRect, selection.width > 1 {
+        if let selection, selection.width > 1, selection.height > 1 {
             let stroke = NSBezierPath(rect: selection)
             stroke.lineWidth = 1
             NSColor.controlAccentColor.setStroke()
             stroke.stroke()
 
+            drawHandles(for: selection)
             drawLabel(sizeText(for: selection), above: selection)
-        } else if let hovered, dragStart == nil {
+            drawHint("Enter to capture · drag a handle to adjust · Esc to clear")
+        } else if let hovered, interaction.isIdle {
             let stroke = NSBezierPath(rect: hovered.rect)
             stroke.lineWidth = 1
             stroke.setLineDash([5, 4], count: 2, phase: 0)
             NSColor.controlAccentColor.setStroke()
             stroke.stroke()
+            drawHint("Drag to select · click a window · F for the whole screen · R for last region")
+        } else {
+            drawHint("Drag to select · click a window · F for the whole screen · R for last region")
         }
+    }
 
-        if dragStart == nil {
-            drawHint()
+    private func drawHandles(for rect: CGRect) {
+        NSColor.white.setFill()
+        NSColor.controlAccentColor.setStroke()
+
+        for handleRect in handleRects(for: rect).values {
+            let path = NSBezierPath(roundedRect: handleRect, xRadius: 2, yRadius: 2)
+            path.lineWidth = 1.5
+            path.fill()
+            path.stroke()
         }
     }
 
@@ -154,15 +184,12 @@ private final class SelectionView: NSView {
         let size = string.size()
         let padding = NSSize(width: 7, height: 3)
 
-        var origin = NSPoint(
-            x: rect.minX,
-            y: rect.maxY + 6
-        )
+        var origin = NSPoint(x: rect.minX, y: rect.maxY + 8)
         if origin.y + size.height + padding.height * 2 > bounds.maxY {
-            origin.y = rect.minY - size.height - padding.height * 2 - 6
+            origin.y = rect.minY - size.height - padding.height * 2 - 8
         }
         if origin.y < bounds.minY {
-            origin.y = rect.minY + 6
+            origin.y = rect.minY + 8
         }
 
         let background = NSRect(
@@ -176,18 +203,18 @@ private final class SelectionView: NSView {
         string.draw(at: NSPoint(x: origin.x + padding.width, y: origin.y + padding.height))
     }
 
-    private func drawHint() {
-        let text = NSAttributedString(
-            string: "Drag to select · click a window · Esc to cancel",
+    private func drawHint(_ text: String) {
+        let string = NSAttributedString(
+            string: text,
             attributes: [
                 .font: NSFont.systemFont(ofSize: 13, weight: .medium),
-                .foregroundColor: NSColor.white.withAlphaComponent(0.85),
+                .foregroundColor: NSColor.white.withAlphaComponent(0.9),
             ]
         )
-        let size = text.size()
+        let size = string.size()
         let origin = NSPoint(
             x: bounds.midX - size.width / 2,
-            y: bounds.midY - size.height / 2
+            y: bounds.minY + 42
         )
         NSColor.black.withAlphaComponent(0.55).setFill()
         NSBezierPath(
@@ -200,7 +227,7 @@ private final class SelectionView: NSView {
             xRadius: 8,
             yRadius: 8
         ).fill()
-        text.draw(at: origin)
+        string.draw(at: origin)
     }
 
     private func sizeText(for rect: CGRect) -> String {
@@ -223,49 +250,90 @@ private final class SelectionView: NSView {
     override func mouseDown(with event: NSEvent) {
         window?.makeKey()
         window?.makeFirstResponder(self)
-        dragStart = convert(event.locationInWindow, from: nil)
-        dragCurrent = dragStart
+        let point = convert(event.locationInWindow, from: nil)
+
+        if event.clickCount == 2, let selection, selection.contains(point) {
+            confirm()
+            return
+        }
+
+        if let selection {
+            if let handle = handle(at: point, in: selection) {
+                interaction = .resizing(handle: handle, rect: selection)
+                return
+            }
+            if selection.contains(point) {
+                interaction = .moving(start: point, rect: selection)
+                return
+            }
+        }
+
+        selection = nil
+        interaction = .creating(start: point)
         needsDisplay = true
     }
 
     override func mouseDragged(with event: NSEvent) {
-        dragCurrent = convert(event.locationInWindow, from: nil)
+        let point = convert(event.locationInWindow, from: nil)
+
+        switch interaction {
+        case .creating(let start):
+            selection = rect(from: start, to: point)
+
+        case .moving(let start, let rect):
+            let offset = CGPoint(x: point.x - start.x, y: point.y - start.y)
+            selection = clamp(rect.offsetBy(dx: offset.x, dy: offset.y))
+
+        case .resizing(let handle, let rect):
+            selection = clamp(resized(rect, handle: handle, to: point))
+
+        case .none:
+            break
+        }
+
         needsDisplay = true
     }
 
     override func mouseUp(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        let rect = clampedSelectionRect
+        let wasCreating: Bool
+        if case .creating = interaction { wasCreating = true } else { wasCreating = false }
+        interaction = .none
 
-        defer {
-            dragStart = nil
-            dragCurrent = nil
-            needsDisplay = true
-        }
+        defer { needsDisplay = true }
 
-        if rect.width < 4 || rect.height < 4 {
+        if wasCreating, let selection, selection.width < 4 || selection.height < 4 {
+            self.selection = nil
+
             if let hovered = windowUnderMouse(point) {
                 onSelect?(.window(id: hovered.id))
             } else {
                 onCancel?()
             }
-            return
         }
-
-        let global = rect.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
-        SelectionMemory.save(global)
-        onSelect?(.region(rect: global, screen: screen))
     }
 
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
-        case 53: // Esc
-            onCancel?()
-        case 3, 36, 76: // F, Return, keypad Enter: whole screen
+        case 53: // Esc: clear the selection first, then leave.
+            if selection != nil {
+                selection = nil
+                needsDisplay = true
+            } else {
+                onCancel?()
+            }
+        case 36, 76: // Return / keypad Enter
+            if selection != nil {
+                confirm()
+            } else {
+                onSelect?(.region(rect: screen.frame, screen: screen))
+            }
+        case 3: // F: whole screen
             onSelect?(.region(rect: screen.frame, screen: screen))
-        case 15: // R: last selection
+        case 15: // R: reuse the last region
             if let last = SelectionMemory.lastSelection {
-                onSelect?(.region(rect: last, screen: screen))
+                selection = clamp(last.offsetBy(dx: -screen.frame.minX, dy: -screen.frame.minY))
+                needsDisplay = true
             }
         default:
             break
@@ -274,23 +342,78 @@ private final class SelectionView: NSView {
 
     // MARK: - Geometry
 
-    private var selectionRect: CGRect? {
-        guard let dragStart, let dragCurrent else { return nil }
-        return CGRect(
-            x: min(dragStart.x, dragCurrent.x),
-            y: min(dragStart.y, dragCurrent.y),
-            width: abs(dragCurrent.x - dragStart.x),
-            height: abs(dragCurrent.y - dragStart.y)
+    private func confirm() {
+        guard let selection, selection.width > 4, selection.height > 4 else { return }
+        let global = selection.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
+        SelectionMemory.save(global)
+        onSelect?(.region(rect: global, screen: screen))
+    }
+
+    private func rect(from a: CGPoint, to b: CGPoint) -> CGRect {
+        CGRect(
+            x: min(a.x, b.x),
+            y: min(a.y, b.y),
+            width: abs(b.x - a.x),
+            height: abs(b.y - a.y)
         )
     }
 
-    private var clampedSelectionRect: CGRect {
-        guard let rect = selectionRect else { return .zero }
-        return rect.intersection(bounds)
+    private func clamp(_ rect: CGRect) -> CGRect {
+        rect.intersection(bounds)
+    }
+
+    private func handleRects(for rect: CGRect) -> [Handle: CGRect] {
+        let size: CGFloat = 9
+        func box(_ x: CGFloat, _ y: CGFloat) -> CGRect {
+            CGRect(x: x - size / 2, y: y - size / 2, width: size, height: size)
+        }
+        return [
+            .topLeft: box(rect.minX, rect.maxY),
+            .top: box(rect.midX, rect.maxY),
+            .topRight: box(rect.maxX, rect.maxY),
+            .right: box(rect.maxX, rect.midY),
+            .bottomRight: box(rect.maxX, rect.minY),
+            .bottom: box(rect.midX, rect.minY),
+            .bottomLeft: box(rect.minX, rect.minY),
+            .left: box(rect.minX, rect.midY),
+        ]
+    }
+
+    private func handle(at point: CGPoint, in rect: CGRect) -> Handle? {
+        for (handle, box) in handleRects(for: rect) {
+            let hit = box.insetBy(dx: -4, dy: -4)
+            if hit.contains(point) { return handle }
+        }
+        return nil
+    }
+
+    private func resized(_ rect: CGRect, handle: Handle, to point: CGPoint) -> CGRect {
+        var minX = rect.minX
+        var maxX = rect.maxX
+        var minY = rect.minY
+        var maxY = rect.maxY
+
+        switch handle {
+        case .topLeft: minX = point.x; maxY = point.y
+        case .top: maxY = point.y
+        case .topRight: maxX = point.x; maxY = point.y
+        case .right: maxX = point.x
+        case .bottomRight: maxX = point.x; minY = point.y
+        case .bottom: minY = point.y
+        case .bottomLeft: minX = point.x; minY = point.y
+        case .left: minX = point.x
+        }
+
+        return CGRect(
+            x: min(minX, maxX),
+            y: min(minY, maxY),
+            width: abs(maxX - minX),
+            height: abs(maxY - minY)
+        )
     }
 
     private func updateHover(at point: CGPoint) {
-        guard dragStart == nil else { return }
+        guard selection == nil, interaction.isIdle else { return }
         hovered = windowUnderMouse(point)
         needsDisplay = true
     }
