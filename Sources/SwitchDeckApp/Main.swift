@@ -38,6 +38,11 @@ enum SwitchDeckApp {
             return
         }
 
+        if arguments.contains("--capture-test") {
+            Dump.captureTest()
+            return
+        }
+
         let application = NSApplication.shared
         let delegate = AppDelegate()
         application.delegate = delegate
@@ -49,8 +54,9 @@ enum SwitchDeckApp {
 /// Prints every switch with its current state. Used by `scripts/smoke.sh` and
 /// helpful when a switch misbehaves: `build/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump`.
 enum Dump {
+    @MainActor
     static func printAll() {
-        for item in SwitchCatalog.standard().items {
+        for item in AppCatalog.make(screenshot: ScreenshotCoordinator()).items {
             print(line(for: item))
         }
     }
@@ -59,7 +65,7 @@ enum Dump {
     /// Toggles flip state, so the printed state afterwards shows the result.
     @MainActor
     static func run(id: String) {
-        guard let item = SwitchCatalog.standard().item(id: id) else {
+        guard let item = AppCatalog.make(screenshot: ScreenshotCoordinator()).item(id: id) else {
             FileHandle.standardError.write(Data("Unknown switch: \(id)\n".utf8))
             exit(2)
         }
@@ -166,6 +172,41 @@ enum Dump {
             atomically: true,
             encoding: .utf8
         )
+    }
+
+    /// Captures the main display to /tmp and writes the outcome next to it.
+    /// Verifies ScreenCaptureKit and the Screen Recording grant without any UI.
+    @MainActor
+    static func captureTest() {
+        let service = ScreenCaptureService()
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        let displayID = (screen.deviceDescription[key] as? NSNumber)?.uint32Value ?? CGMainDisplayID()
+
+        func write(_ text: String) {
+            print(text)
+            try? text.write(
+                to: URL(fileURLWithPath: "/tmp/switchdeck-capture.txt"),
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+
+        Task {
+            do {
+                let image = try await service.captureDisplay(displayID: displayID)
+                let rep = NSBitmapImageRep(cgImage: image)
+                if let data = rep.representation(using: .png, properties: [:]) {
+                    try data.write(to: URL(fileURLWithPath: "/tmp/switchdeck-capture.png"))
+                }
+                write("ok \(image.width)x\(image.height)")
+            } catch {
+                write("failed \(error.localizedDescription)")
+            }
+            exit(0)
+        }
+
+        RunLoop.main.run()
     }
 
     /// Registers a probe shortcut through the real Carbon path and reports the

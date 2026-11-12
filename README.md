@@ -17,7 +17,7 @@ Grant there once and the menu never prompts again; using a switch with a missing
 
 ## Status
 
-Milestones M1–M4 are done: fifteen switches, the menu-bar UI, global shortcuts with an inline recorder, a setup window for permissions, an app icon, and a stable local signature.
+Milestones M1–M4 are done: sixteen switches, the menu-bar UI, global shortcuts with an inline recorder, a setup window for permissions, an app icon, and a stable local signature.
 
 | Switch | How it works | Note |
 |---|---|---|
@@ -33,6 +33,7 @@ Milestones M1–M4 are done: fifteen switches, the menu-bar UI, global shortcuts
 | Empty Trash | Finder AppleScript: `count items in trash`, `empty trash` | Needs Automation; direct `~/.Trash` reads are blocked by TCC |
 | Empty Pasteboard | `NSPasteboard.clearContents()` | |
 | Recording | `AVAudioRecorder` to `~/Music/SwitchDeck`, elapsed time in the menu | Needs Microphone |
+| Screenshot | ScreenCaptureKit region/window capture; borderless editor with rectangle, ellipse, arrow, pen, text; copy, save, pin | Needs Screen Recording |
 | Hide Windows | `NSRunningApplication.hide()`, skips Finder and SwitchDeck | Reversible: click the app in the Dock |
 | Quit All Apps | `NSRunningApplication.terminate()`, skips Finder and SwitchDeck | Unsaved work still prompts |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, counts removable volumes | |
@@ -71,6 +72,7 @@ build/SwitchDeck.app/Contents/MacOS/SwitchDeck --run keepAwake # run one switch,
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --hotkeys       # register a probe shortcut, report conflicts
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --permissions   # what the app sees for each permission
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --menu          # the menu as it is built
+build/SwitchDeck.app/Contents/MacOS/SwitchDeck --capture-test  # capture the main display, report the result
 ```
 
 ## Layout
@@ -99,6 +101,7 @@ macOS TCC cannot be pre-granted. The first time a switch needs something, macOS 
 - **Automation** — Dark Mode (System Events) and Empty Trash (Finder). Also listed in Settings › General.
 - **Accessibility** — Lock Keyboard and Screen Clean. The first attempt shows the macOS prompt; the switch then explains how to grant it.
 - **Microphone** — Recording. macOS asks the first time you start one.
+- **Screen Recording** — Screenshot. macOS applies the grant after a relaunch.
 
 ### Why rebuilds used to lose permissions
 
@@ -116,7 +119,8 @@ The build is signed with a local self-signed identity (see Permissions below). L
 
 - **M1–M3 — done** — menu, switches, settings, global shortcuts, the hard system integrations.
 - **M4 — done** — setup window and permission status, app icon, stable local signing, About pane.
-- **Later** — drag reordering in Customize, live menu updates while recording, localisation.
+- **Screenshot follow-ups** — blur/mosaic, cropping, OCR, scrolling capture, selection handles to adjust the region after capture.
+- **Later** — live menu updates while recording, localisation.
 
 ## Why not copy AnySwitch's scripts
 

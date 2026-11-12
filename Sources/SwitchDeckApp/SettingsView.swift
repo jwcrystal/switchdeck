@@ -148,6 +148,17 @@ private struct GeneralPane: View {
                         RowDivider()
 
                         PermissionStatusRow(
+                            title: "Screen Recording",
+                            detail: "Screenshot. macOS applies the grant after a relaunch.",
+                            granted: permissions.screenRecording,
+                            grantTitle: "Grant",
+                            onGrant: { permissions.requestScreenRecording() },
+                            onOpenSettings: { permissions.openPrivacyPane("Privacy_ScreenCapture") }
+                        )
+
+                        RowDivider()
+
+                        PermissionStatusRow(
                             title: "Automation — System Events",
                             detail: "Dark Mode.",
                             granted: permissions.systemEvents == .granted,

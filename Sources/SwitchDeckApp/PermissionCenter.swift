@@ -17,6 +17,7 @@ final class PermissionCenter: ObservableObject {
 
     @Published private(set) var accessibility = false
     @Published private(set) var microphone: AVAuthorizationStatus = .notDetermined
+    @Published private(set) var screenRecording = false
     @Published private(set) var systemEvents: AutomationState = .unknown
     @Published private(set) var finder: AutomationState = .unknown
     /// Result of the last "Grant" attempt, shown under the rows.
@@ -55,6 +56,7 @@ final class PermissionCenter: ObservableObject {
     func refresh() {
         accessibility = AXIsProcessTrusted()
         microphone = AVCaptureDevice.authorizationStatus(for: .audio)
+        screenRecording = CGPreflightScreenCaptureAccess()
 
         // Unknown usually means the target app is not running, not that the
         // grant is missing; keep the last known answer instead of flapping.
@@ -98,6 +100,11 @@ final class PermissionCenter: ObservableObject {
         AVCaptureDevice.requestAccess(for: .audio) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
+    }
+
+    func requestScreenRecording() {
+        _ = CGRequestScreenCaptureAccess()
+        refresh()
     }
 
     func requestAutomation(bundleID: String) {

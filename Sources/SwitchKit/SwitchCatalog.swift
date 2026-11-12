@@ -8,6 +8,10 @@ import Foundation
 public struct SwitchCatalog {
     public let items: [SwitchItem]
 
+    public init(items: [SwitchItem]) {
+        self.items = items
+    }
+
     public var ids: [String] { items.map(\.id) }
 
     public func item(id: String) -> SwitchItem? {
