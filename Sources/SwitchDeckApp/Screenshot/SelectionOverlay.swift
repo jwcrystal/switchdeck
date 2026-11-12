@@ -142,6 +142,8 @@ private final class SelectionView: NSView {
     private var sampleRep: NSBitmapImageRep?
     private var hoverColor: NSColor?
     private var optionHeld = false
+    private enum ColorFormat: Int { case hex, rgb, hsl }
+    private var colorFormat: ColorFormat = .hex
     private var lastMousePoint: CGPoint = .zero
 
     private var startPoint: CGPoint?
@@ -237,8 +239,10 @@ private final class SelectionView: NSView {
             drawHint("Enter or drag to edit · R reuses the last region · Esc cancels")
         }
 
-        drawColorReadout()
-        drawColorHint()
+        if !editing {
+            drawColorReadout()
+            drawColorHint()
+        }
     }
 
     private func drawAnnotations(in rect: CGRect) {
@@ -339,7 +343,7 @@ private final class SelectionView: NSView {
 
     private func drawColorHint() {
         let string = NSAttributedString(
-            string: "C Copy colour · ⌥ Switch HEX/RGB",
+            string: "C Copy colour · ⌥ HEX / RGB / HSL",
             attributes: [
                 .font: NSFont.systemFont(ofSize: 11, weight: .medium),
                 .foregroundColor: NSColor.white.withAlphaComponent(0.8),
@@ -390,10 +394,44 @@ private final class SelectionView: NSView {
         let r = Int((color.redComponent * 255).rounded())
         let g = Int((color.greenComponent * 255).rounded())
         let b = Int((color.blueComponent * 255).rounded())
-        if optionHeld {
-            return "R\(r) G\(g) B\(b)"
+
+        switch colorFormat {
+        case .hex:
+            return String(format: "#%02X%02X%02X", r, g, b)
+        case .rgb:
+            return "R \(r) G \(g) B \(b)"
+        case .hsl:
+            let hsl = hslComponents(color)
+            return "H \(hsl.h) S \(hsl.s) L \(hsl.l)"
         }
-        return String(format: "#%02X%02X%02X", r, g, b)
+    }
+
+    private func hslComponents(_ color: NSColor) -> (h: Int, s: Int, l: Int) {
+        let r = color.redComponent
+        let g = color.greenComponent
+        let b = color.blueComponent
+        let maxValue = max(r, g, b)
+        let minValue = min(r, g, b)
+        let l = (maxValue + minValue) / 2
+        var h: CGFloat = 0
+        var s: CGFloat = 0
+
+        if maxValue != minValue {
+            let d = maxValue - minValue
+            s = l > 0.5 ? d / (2 - maxValue - minValue) : d / (maxValue + minValue)
+            switch maxValue {
+            case r: h = (g - b) / d + (g < b ? 6 : 0)
+            case g: h = (b - r) / d + 2
+            default: h = (r - g) / d + 4
+            }
+            h /= 6
+        }
+
+        return (
+            Int((h * 360).rounded()),
+            Int((s * 100).rounded()),
+            Int((l * 100).rounded())
+        )
     }
 
     func prepareSample() {
@@ -409,8 +447,12 @@ private final class SelectionView: NSView {
     }
 
     override func flagsChanged(with event: NSEvent) {
-        optionHeld = event.modifierFlags.contains(.option)
-        needsDisplay = true
+        let optionNow = event.modifierFlags.contains(.option)
+        if optionNow, !optionHeld {
+            colorFormat = ColorFormat(rawValue: (colorFormat.rawValue + 1) % 3) ?? .hex
+            needsDisplay = true
+        }
+        optionHeld = optionNow
     }
 
     private func updateHoverColor(at point: CGPoint) {
@@ -422,7 +464,7 @@ private final class SelectionView: NSView {
             hoverColor = nil
             return
         }
-        if editing, let selection, !selection.contains(point) {
+        if editing {
             hoverColor = nil
             return
         }
@@ -580,8 +622,11 @@ private final class SelectionView: NSView {
                 return event
             case 8: // C copies the colour under the cursor
                 if let hoverColor = self.hoverColor {
+                    let text = self.colorText(hoverColor)
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(self.colorText(hoverColor), forType: .string)
+                    NSPasteboard.general.setString(text, forType: .string)
+                    ColorToast.show(text)
+                    self.onCancel?()
                     return nil
                 }
                 return event
@@ -1160,5 +1205,61 @@ private enum SelectionMemory {
 extension SelectionView: NSTextFieldDelegate {
     func controlTextDidEndEditing(_ obj: Notification) {
         commitTextFieldIfNeeded()
+    }
+}
+
+/// Small non-activating toast used when a colour is copied.
+@MainActor
+enum ColorToast {
+    private static var windows: [NSWindow] = []
+
+    static func show(_ text: String) {
+        let label = NSTextField(labelWithString: "Copied \(text)")
+        label.font = .systemFont(ofSize: 13, weight: .medium)
+        label.textColor = .white
+        label.sizeToFit()
+
+        let padding: CGFloat = 14
+        let size = NSSize(
+            width: label.frame.width + padding * 2,
+            height: label.frame.height + padding
+        )
+
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.level = .statusBar
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.ignoresMouseEvents = true
+        window.hasShadow = true
+
+        let container = NSView(frame: NSRect(origin: .zero, size: size))
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor(calibratedWhite: 0.12, alpha: 0.95).cgColor
+        container.layer?.cornerRadius = 8
+        label.frame.origin = NSPoint(x: padding, y: padding / 2)
+        container.addSubview(label)
+        window.contentView = container
+
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+        let visible = screen?.visibleFrame ?? .zero
+        var origin = NSPoint(x: mouse.x + 18, y: mouse.y - size.height - 18)
+        origin.x = min(max(visible.minX + 8, origin.x), visible.maxX - size.width - 8)
+        origin.y = min(max(visible.minY + 8, origin.y), visible.maxY - size.height - 8)
+        window.setFrameOrigin(origin)
+
+        window.orderFrontRegardless()
+        windows.append(window)
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_400_000_000)
+            window.orderOut(nil)
+            windows.removeAll { $0 === window }
+        }
     }
 }

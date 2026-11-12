@@ -48,7 +48,7 @@ Settings › Customize reorders and hides switches; the choice is stored in
 - The default tool is Select, so the toolbar is optional: click an active tool again to cancel it and go back to selecting. With a tool active, dragging inside draws:
   -  rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (S/M/L, optional bubble), numbered markers, mosaic and blur.
 - The region keeps its eight handles while editing, so it can still be resized; while dragging, the live screen shows through and the frozen image is refreshed on release.
-- The colour under the pointer is shown while selecting and while editing; `C` copies it and holding `⌥` switches between HEX and RGB.
+- While selecting, the colour under the pointer is shown with its value; `⌥` cycles HEX / RGB / HSL, and `C` copies the value, leaves capture mode and shows a short "Copied …" toast. The readout is hidden once editing starts.
 - The region is frozen the moment editing starts, so mosaic and blur preview exactly what gets saved.
 - The toolbar keeps every tool on one row; only variant options (arrow style, text size and bubble) open a small submenu. `Tab` hides the bar.
 - The signature button adds a watermark (the macOS full user name); its popover edits the text, colour, position (four corners, centre or a tiled pattern), size (S/M/L), angle (0/30/45°) and opacity. It is clipped to the capture, so a rotated or tiled watermark never spills outside the selection. The eye-slash button hides it from the image but keeps the text in the PNG metadata.
