@@ -253,12 +253,22 @@ private final class SelectionView: NSView {
         }
 
         let global = rect.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
+        SelectionMemory.save(global)
         onSelect?(.region(rect: global, screen: screen))
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 {
+        switch event.keyCode {
+        case 53: // Esc
             onCancel?()
+        case 3, 36, 76: // F, Return, keypad Enter: whole screen
+            onSelect?(.region(rect: screen.frame, screen: screen))
+        case 15: // R: last selection
+            if let last = SelectionMemory.lastSelection {
+                onSelect?(.region(rect: last, screen: screen))
+            }
+        default:
+            break
         }
     }
 
@@ -326,5 +336,26 @@ private final class SelectionView: NSView {
             return (id, local)
         }
         return nil
+    }
+}
+
+/// Remembers the last region so `R` can reuse it, like HapiGo.
+private enum SelectionMemory {
+    private static let key = "ScreenshotLastSelection"
+
+    static var lastSelection: CGRect? {
+        guard let values = UserDefaults.standard.array(forKey: key) as? [Double], values.count == 4 else {
+            return nil
+        }
+        let rect = CGRect(x: values[0], y: values[1], width: values[2], height: values[3])
+        guard rect.width > 4, rect.height > 4 else { return nil }
+        return rect
+    }
+
+    static func save(_ rect: CGRect) {
+        UserDefaults.standard.set(
+            [rect.origin.x, rect.origin.y, rect.width, rect.height],
+            forKey: key
+        )
     }
 }

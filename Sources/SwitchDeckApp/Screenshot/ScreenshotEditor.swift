@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 @MainActor
 final class EditorModel: ObservableObject {
     enum Tool: String, CaseIterable, Identifiable {
-        case rectangle, ellipse, arrow, pen, text
+        case rectangle, ellipse, line, arrow, pen, highlighter, text, number, mosaic
 
         var id: String { rawValue }
 
@@ -13,9 +13,13 @@ final class EditorModel: ObservableObject {
             switch self {
             case .rectangle: return "rectangle"
             case .ellipse: return "circle"
+            case .line: return "line.diagonal"
             case .arrow: return "arrow.up.right"
             case .pen: return "pencil.tip"
+            case .highlighter: return "highlighter"
             case .text: return "textformat"
+            case .number: return "number.circle"
+            case .mosaic: return "square.grid.3x3"
             }
         }
 
@@ -23,9 +27,13 @@ final class EditorModel: ObservableObject {
             switch self {
             case .rectangle: return "Rectangle"
             case .ellipse: return "Ellipse"
+            case .line: return "Line"
             case .arrow: return "Arrow"
             case .pen: return "Freehand"
+            case .highlighter: return "Highlighter"
             case .text: return "Text"
+            case .number: return "Number"
+            case .mosaic: return "Mosaic"
             }
         }
     }
@@ -42,6 +50,7 @@ final class EditorModel: ObservableObject {
     @Published var tool: Tool = .rectangle
     @Published var color: Color = .red
     @Published var lineWidth: CGFloat = 0.004
+    @Published var nextNumber = 1
     @Published var draft: Annotation?
     @Published var textDraft: TextDraft?
 
@@ -63,6 +72,9 @@ final class EditorModel: ObservableObject {
 
     func commit(_ shape: Annotation.Shape) {
         annotations.append(Annotation(shape: shape, color: color, lineWidth: lineWidth))
+        if case .number = shape {
+            nextNumber += 1
+        }
     }
 
     func undo() {
@@ -366,27 +378,28 @@ private struct AnnotationCanvas: View {
                     guard displaySize.width > 0, displaySize.height > 0 else { return }
 
                     switch model.tool {
-                    case .text:
+                    case .text, .number:
                         break
-                    case .pen:
+                    case .pen, .highlighter:
                         if startPoint == nil {
                             startPoint = normalize(value.startLocation)
                             penPoints = []
                         }
                         penPoints.append(point)
-                        model.draft = Annotation(shape: .pen(points: penPoints), color: model.color, lineWidth: model.lineWidth)
-                    case .rectangle, .ellipse, .arrow:
+                        let shape: Annotation.Shape = model.tool == .pen
+                            ? .pen(points: penPoints)
+                            : .highlighter(points: penPoints)
+                        model.draft = Annotation(shape: shape, color: model.color, lineWidth: model.lineWidth)
+                    default:
                         if startPoint == nil {
                             startPoint = normalize(value.startLocation)
                         }
                         guard let start = startPoint else { return }
-                        let shape: Annotation.Shape
-                        switch model.tool {
-                        case .rectangle: shape = .rectangle(from: start, to: point)
-                        case .ellipse: shape = .ellipse(from: start, to: point)
-                        default: shape = .arrow(from: start, to: point)
-                        }
-                        model.draft = Annotation(shape: shape, color: model.color, lineWidth: model.lineWidth)
+                        model.draft = Annotation(
+                            shape: dragShape(from: start, to: point),
+                            color: model.color,
+                            lineWidth: model.lineWidth
+                        )
                     }
                 }
                 .onEnded { value in
@@ -400,26 +413,23 @@ private struct AnnotationCanvas: View {
                         model.draft = nil
                     }
 
-                    if model.tool == .text {
+                    switch model.tool {
+                    case .text:
                         if moved < 4 {
                             model.textDraft = .init(point: end, text: "")
                         }
-                        return
-                    }
-
-                    guard moved >= 3 else { return }
-
-                    switch model.tool {
-                    case .rectangle:
-                        model.commit(.rectangle(from: start, to: end))
-                    case .ellipse:
-                        model.commit(.ellipse(from: start, to: end))
-                    case .arrow:
-                        model.commit(.arrow(from: start, to: end))
-                    case .pen:
-                        model.commit(.pen(points: penPoints))
-                    case .text:
-                        break
+                    case .number:
+                        if moved < 6 {
+                            model.commit(.number(model.nextNumber, at: end))
+                        }
+                    case .pen, .highlighter:
+                        guard moved >= 3 else { return }
+                        model.commit(model.tool == .pen
+                            ? .pen(points: penPoints)
+                            : .highlighter(points: penPoints))
+                    default:
+                        guard moved >= 3 else { return }
+                        model.commit(dragShape(from: start, to: end))
                     }
                 }
             )
@@ -439,6 +449,16 @@ private struct AnnotationCanvas: View {
                 .onSubmit { model.commitText() }
                 .onAppear { textFocused = true }
             }
+        }
+    }
+
+    private func dragShape(from start: CGPoint, to end: CGPoint) -> Annotation.Shape {
+        switch model.tool {
+        case .rectangle: return .rectangle(from: start, to: end)
+        case .ellipse: return .ellipse(from: start, to: end)
+        case .line: return .line(from: start, to: end)
+        case .mosaic: return .mosaic(from: start, to: end)
+        default: return .arrow(from: start, to: end)
         }
     }
 
@@ -495,6 +515,44 @@ private struct AnnotationCanvas: View {
                 path.addLine(to: scale(point))
             }
             context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+
+        case .line(let from, let to):
+            var path = Path()
+            path.move(to: scale(from))
+            path.addLine(to: scale(to))
+            context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+
+        case .highlighter(let points):
+            guard let first = points.first else { return }
+            var path = Path()
+            path.move(to: scale(first))
+            for point in points.dropFirst() {
+                path.addLine(to: scale(point))
+            }
+            context.stroke(
+                path,
+                with: .color(color.opacity(0.32)),
+                style: StrokeStyle(lineWidth: max(6, size.width * 0.02), lineCap: .round, lineJoin: .round)
+            )
+
+        case .number(let value, let at):
+            let center = scale(at)
+            let radius = max(11, size.width * 0.014)
+            let circle = CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
+            context.fill(Path(ellipseIn: circle), with: .color(color))
+            let resolved = context.resolve(
+                Text("\(value)")
+                    .font(.system(size: radius * 1.15, weight: .bold))
+                    .foregroundColor(.white)
+            )
+            context.draw(resolved, at: center, anchor: .center)
+
+        case .mosaic(let from, let to):
+            let a = scale(from)
+            let b = scale(to)
+            let rect = CGRect(x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y).standardized
+            context.fill(Path(rect), with: .color(.gray.opacity(0.85)))
+            context.stroke(Path(rect), with: .color(.white.opacity(0.35)), lineWidth: 1)
 
         case .text(let text, let at):
             let resolved = context.resolve(

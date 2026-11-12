@@ -97,7 +97,7 @@ enum Dump {
     /// switches being absent. Useful when the menu looks wrong.
     @MainActor
     static func printMenu() {
-        let model = AppModel()
+        let model = AppModel(catalog: AppCatalog.make(screenshot: ScreenshotCoordinator()))
         var seen = Set<String>()
         let items = model.menuItems.filter { seen.insert($0.id).inserted }
 

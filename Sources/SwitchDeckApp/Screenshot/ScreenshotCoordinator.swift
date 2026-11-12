@@ -159,6 +159,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             case 49: // Space
                 self.model.save()
                 return nil
+            case 35: // P
+                self.model.pin()
+                return nil
             default:
                 return event
             }
