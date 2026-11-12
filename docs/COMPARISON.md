@@ -78,8 +78,22 @@ Chosen to keep the "one row, one action" shape and avoid new permissions:
 - **Screenshot** — `screencapture -i`, needs Screen Recording.
 - **Hide Windows** — `NSRunningApplication.hide()`, safer than quitting everything.
 
+## Adjacent tools
+
+Four other ways people get the same job done. None of them is a switch list in the same sense; they are what a user weighs against AnySwitch or this project.
+
+| Tool | Shape | Why it matters |
+|---|---|---|
+| One Switch (Fireball Studio) | Paid, five switches, 7-day trial | The polish bar: fewer switches, refined for years |
+| Control Center + Shortcuts | Built in | The default answer; no install, no shared list |
+| Raycast | Keyboard commands and extensions | Wins for people who never open a menu |
+| Amphetamine | One job, done deeply | Keep Awake with schedules and triggers |
+
+Deliberately left out: menu-bar managers (Ice, Bartender), cleaners (CleanMyMac, OnyX) and screenshot tools (CleanShot). They overlap on at most one switch and would blur the comparison; revisit them if SwitchDeck ever grows "Hide Menu Bar Icons" or "Screenshot".
+
 ## Sources
 
 - App Store listing for AnySwitch (id6444313776) and the app bundle at `/Applications/AnySwitch.app`.
 - OnlySwitch README and `Modules/Sources/AppFeature/EverySwitch/EjectDiscsSwitch.swift`, `EmptyTrashSwitch.swift` on GitHub.
+- One Switch product page at fireball.studio/oneswitch.
 - This repository's sources, tests and `scripts/`.
