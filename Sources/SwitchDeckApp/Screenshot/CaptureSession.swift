@@ -354,9 +354,11 @@ private struct WatermarkSettingsView: View {
                 Text("Angle")
                     .frame(width: 54, alignment: .leading)
                     .foregroundStyle(.secondary)
-                angleButton(0, "0°")
-                angleButton(-30, "30°")
-                angleButton(-45, "45°")
+                Slider(value: $session.watermarkRotation, in: -90...90, step: 1)
+                Text("\(Int(session.watermarkRotation))°")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .frame(width: 36, alignment: .trailing)
             }
 
             HStack(spacing: 6) {
@@ -405,11 +407,4 @@ private struct WatermarkSettingsView: View {
         .tint(session.watermarkScale == scale ? .accentColor : nil)
     }
 
-    private func angleButton(_ angle: CGFloat, _ title: String) -> some View {
-        Button(title) {
-            session.watermarkRotation = angle
-        }
-        .buttonStyle(.bordered)
-        .tint(session.watermarkRotation == angle ? .accentColor : nil)
-    }
 }
