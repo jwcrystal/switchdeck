@@ -1,4 +1,5 @@
 import AppKit
+import ImageIO
 import SwitchKit
 import UniformTypeIdentifiers
 
@@ -34,12 +35,39 @@ final class ScreenshotCoordinator {
         start(initialSelection: CGRect(x: 300, y: 240, width: 900, height: 520))
     }
 
+    /// Debug: compares a normal capture with one that excludes SwitchDeck while
+    /// the overlay is up, to prove the overlay is not baked into the image.
+    func compareCaptures() {
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        guard let displayID = Self.displayID(for: screen) else { return }
+
+        Task {
+            let plain = try? await capture.captureDisplay(displayID: displayID, excludingOwnApp: false)
+            let excluded = try? await capture.captureDisplay(displayID: displayID, excludingOwnApp: true)
+
+            for (name, image) in [("plain", plain), ("excluded", excluded)] {
+                guard let image else { continue }
+                let rep = NSBitmapImageRep(cgImage: image)
+                let data = rep.representation(using: .png, properties: [:])
+                try? data?.write(to: URL(fileURLWithPath: "/tmp/sd-capture-\(name).png"))
+            }
+        }
+    }
+
     /// Debug: demo selection, then copy it after a moment. Verifies the whole
     /// capture → compose → clipboard path without any clicking.
     func beginDemoCopy() {
         beginDemo()
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-            self?.selections.completeForDebug(.copy)
+            let mosaic = Annotation(
+                shape: .mosaic(from: CGPoint(x: 0.1, y: 0.2), to: CGPoint(x: 0.45, y: 0.7)),
+                color: .red
+            )
+            let blur = Annotation(
+                shape: .blur(from: CGPoint(x: 0.55, y: 0.2), to: CGPoint(x: 0.9, y: 0.5)),
+                color: .red
+            )
+            self?.selections.completeForDebug(.copy, extraAnnotations: [mosaic, blur])
         }
     }
 
@@ -47,41 +75,53 @@ final class ScreenshotCoordinator {
         guard !selections.isActive else { return }
 
         selections.begin(
-            onCapture: { [weak self] rect, screen, annotations, output in
+            onCapture: { [weak self] payload, output in
                 Task { @MainActor in
-                    await self?.finish(rect: rect, screen: screen, annotations: annotations, output: output)
+                    await self?.finish(payload, output)
                 }
             },
             onCancel: {},
+            captureBase: { [weak self] rect, screen in
+                await self?.captureRegion(rect, screen)
+            },
             initialSelection: initialSelection
         )
     }
 
+    private func captureRegion(_ rect: CGRect, _ screen: NSScreen) async -> CGImage? {
+        guard let displayID = Self.displayID(for: screen),
+              let full = try? await capture.captureDisplay(displayID: displayID, excludingOwnApp: true)
+        else { return nil }
+        return capture.crop(image: full, to: rect, screenFrame: screen.frame)
+    }
+
     // MARK: - Finish
 
-    private func finish(
-        rect: CGRect,
-        screen: NSScreen,
-        annotations: [Annotation],
-        output: CaptureSession.Output
-    ) async {
+    private func finish(_ payload: CapturePayload, _ output: CaptureSession.Output) async {
         do {
-            guard let displayID = Self.displayID(for: screen) else {
-                throw ScreenCaptureService.CaptureError.displayNotFound
-            }
-
-            let full = try await capture.captureDisplay(displayID: displayID, excludingOwnApp: true)
-            guard let cropped = capture.crop(image: full, to: rect, screenFrame: screen.frame) else {
+            // The overlay already froze the region for live mosaic/blur; only
+            // capture again if that never arrived.
+            let cropped: CGImage
+            if let base = payload.base {
+                cropped = base
+            } else if let region = await captureRegion(payload.rect, payload.screen) {
+                cropped = region
+            } else {
                 throw ScreenCaptureService.CaptureError.captureFailed("The selected area was empty.")
             }
 
-            let image = AnnotationRenderer.render(base: cropped, annotations: annotations)
+            let visibleWatermark = payload.watermarkVisible ? payload.watermark : nil
+            let image = AnnotationRenderer.render(
+                base: cropped,
+                annotations: payload.annotations,
+                watermark: visibleWatermark
+            )
 
             switch output {
             case .copy:
                 copy(image)
             case .save:
-                save(image)
+                save(image, watermark: payload.watermark)
             case .pin:
                 pin(image)
             }
@@ -95,7 +135,7 @@ final class ScreenshotCoordinator {
         NSPasteboard.general.writeObjects([image])
     }
 
-    private func save(_ image: NSImage) {
+    private func save(_ image: NSImage, watermark: String?) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
         panel.nameFieldStringValue = "Screenshot \(Self.stamp()).png"
@@ -103,6 +143,24 @@ final class ScreenshotCoordinator {
         panel.canCreateDirectories = true
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        // A watermark that is hidden still lives on in the file metadata.
+        if let watermark,
+           let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+           let destination = CGImageDestinationCreateWithURL(
+               url as CFURL,
+               UTType.png.identifier as CFString,
+               1,
+               nil
+           ) {
+            let properties: [CFString: Any] = [kCGImagePropertyPNGDescription: watermark]
+            CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
+            guard CGImageDestinationFinalize(destination) else {
+                present(ScreenCaptureService.CaptureError.captureFailed("The PNG could not be written."))
+                return
+            }
+            return
+        }
 
         guard let tiff = image.tiffRepresentation,
               let rep = NSBitmapImageRep(data: tiff),

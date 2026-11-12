@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// In-place screenshot editing, HapiGo style: the selection stays on screen,
@@ -7,15 +8,16 @@ import SwiftUI
 @MainActor
 final class SelectionController {
     private var windows: [SelectionWindow] = []
-    private var captureHandler: ((CGRect, NSScreen, [Annotation], CaptureSession.Output) -> Void)?
+    private var captureHandler: ((CapturePayload, CaptureSession.Output) -> Void)?
     private var cancelHandler: (() -> Void)?
 
     let session = CaptureSession()
     private(set) var isActive = false
 
     func begin(
-        onCapture: @escaping (CGRect, NSScreen, [Annotation], CaptureSession.Output) -> Void,
+        onCapture: @escaping (CapturePayload, CaptureSession.Output) -> Void,
         onCancel: @escaping () -> Void,
+        captureBase: @escaping (CGRect, NSScreen) async -> CGImage?,
         initialSelection: CGRect? = nil
     ) {
         guard !isActive else { return }
@@ -26,12 +28,12 @@ final class SelectionController {
 
         for screen in NSScreen.screens {
             let window = SelectionWindow(screen: screen)
-            let view = SelectionView(screen: screen, session: session)
-            view.onCapture = { [weak self] rect, screen, annotations, output in
-                self?.finish(rect: rect, screen: screen, annotations: annotations, output: output)
+            let view = SelectionView(screen: screen, session: session, captureBase: captureBase)
+            view.onCapture = { [weak self] payload, output in
+                self?.finish(payload, output)
             }
             view.onCancel = { [weak self] in
-                self?.finish(rect: nil, screen: nil, annotations: [], output: .copy)
+                self?.finish(nil, .copy)
             }
             window.contentView = view
             window.makeKeyAndOrderFront(nil)
@@ -52,20 +54,16 @@ final class SelectionController {
     }
 
     /// Debug helper: completes the current selection as if Enter was pressed.
-    func completeForDebug(_ output: CaptureSession.Output = .copy) {
+    func completeForDebug(_ output: CaptureSession.Output, extraAnnotations: [Annotation] = []) {
         for window in windows {
             guard let view = window.contentView as? SelectionView, view.hasSelectionForDebug else { continue }
+            view.session.annotations.append(contentsOf: extraAnnotations)
             view.finishForDebug(output)
             return
         }
     }
 
-    private func finish(
-        rect: CGRect?,
-        screen: NSScreen?,
-        annotations: [Annotation],
-        output: CaptureSession.Output
-    ) {
+    private func finish(_ payload: CapturePayload?, _ output: CaptureSession.Output) {
         guard isActive else { return }
         isActive = false
 
@@ -74,8 +72,8 @@ final class SelectionController {
         }
         windows.removeAll()
 
-        if let rect, let screen {
-            captureHandler?(rect, screen, annotations, output)
+        if let payload {
+            captureHandler?(payload, output)
         } else {
             cancelHandler?()
         }
@@ -126,14 +124,17 @@ private final class SelectionView: NSView {
 
     let screen: NSScreen
     let session: CaptureSession
+    private let captureBase: (CGRect, NSScreen) async -> CGImage?
 
-    var onCapture: ((CGRect, NSScreen, [Annotation], CaptureSession.Output) -> Void)?
+    var onCapture: ((CapturePayload, CaptureSession.Output) -> Void)?
     var onCancel: (() -> Void)?
 
     private var selection: CGRect?
     private var interaction: Interaction = .none
     private var hovered: (id: CGWindowID, rect: CGRect)?
     private var editing = false
+    private var baseImage: CGImage?
+    private var baseTask: Task<Void, Never>?
 
     private var startPoint: CGPoint?
     private var draft: Annotation?
@@ -143,10 +144,12 @@ private final class SelectionView: NSView {
     private var textField: NSTextField?
     private var textAnchor: CGPoint = .zero
     private var keyMonitor: Any?
+    private var sessionCancellable: AnyCancellable?
 
-    init(screen: NSScreen, session: CaptureSession) {
+    init(screen: NSScreen, session: CaptureSession, captureBase: @escaping (CGRect, NSScreen) async -> CGImage?) {
         self.screen = screen
         self.session = session
+        self.captureBase = captureBase
         super.init(frame: NSRect(origin: .zero, size: screen.frame.size))
         wantsLayer = true
     }
@@ -190,11 +193,18 @@ private final class SelectionView: NSView {
         }
 
         if editing {
+            if let baseImage {
+                NSImage(cgImage: baseImage, size: selection.size).draw(in: selection)
+            }
             drawAnnotations(in: selection)
+            if session.watermarkEnabled, !session.watermarkHidden {
+                AnnotationRenderer.drawWatermark(session.watermarkText, in: selection)
+            }
             let stroke = NSBezierPath(rect: selection)
             stroke.lineWidth = 1
             NSColor.controlAccentColor.withAlphaComponent(0.8).setStroke()
             stroke.stroke()
+            drawEditingHint()
         } else {
             let stroke = NSBezierPath(rect: selection)
             stroke.lineWidth = 1
@@ -209,10 +219,10 @@ private final class SelectionView: NSView {
 
     private func drawAnnotations(in rect: CGRect) {
         for annotation in session.annotations {
-            AnnotationRenderer.draw(annotation, in: rect, base: nil)
+            AnnotationRenderer.draw(annotation, in: rect, base: baseImage)
         }
         if let draft {
-            AnnotationRenderer.draw(draft, in: rect, base: nil)
+            AnnotationRenderer.draw(draft, in: rect, base: baseImage)
         }
     }
 
@@ -280,6 +290,36 @@ private final class SelectionView: NSView {
         string.draw(at: origin)
     }
 
+    private func drawEditingHint() {
+        guard let toolbarHost else { return }
+        let text = "↩ Copy · Space Save · P Pin · ⌘Z Undo · Esc Close"
+        let string = NSAttributedString(
+            string: text,
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 11.5, weight: .medium),
+                .foregroundColor: NSColor.white.withAlphaComponent(0.85),
+            ]
+        )
+        let size = string.size()
+        let frame = toolbarHost.frame
+        let origin = NSPoint(
+            x: min(max(8, frame.midX - size.width / 2), bounds.width - size.width - 8),
+            y: max(6, frame.minY - 22)
+        )
+        NSColor.black.withAlphaComponent(0.5).setFill()
+        NSBezierPath(
+            roundedRect: NSRect(
+                x: origin.x - 10,
+                y: origin.y - 4,
+                width: size.width + 20,
+                height: size.height + 8
+            ),
+            xRadius: 6,
+            yRadius: 6
+        ).fill()
+        string.draw(at: origin)
+    }
+
     private func sizeText(for rect: CGRect) -> String {
         let scale = screen.backingScaleFactor
         return "\(Int(rect.width * scale)) × \(Int(rect.height * scale))"
@@ -314,7 +354,25 @@ private final class SelectionView: NSView {
 
         installToolbar()
         installKeyMonitor()
+        sessionCancellable = session.objectWillChange.sink { [weak self] _ in
+            DispatchQueue.main.async { self?.needsDisplay = true }
+        }
+        loadBase()
         needsDisplay = true
+    }
+
+    /// Freeze the selected pixels so mosaic and blur can be shown for real.
+    private func loadBase() {
+        guard let selection else { return }
+        let global = selection.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
+        baseTask?.cancel()
+        baseTask = Task { [weak self] in
+            guard let self else { return }
+            let image = await self.captureBase(global, self.screen)
+            guard !Task.isCancelled else { return }
+            self.baseImage = image
+            self.needsDisplay = true
+        }
     }
 
     /// Enter/Space/P work even when the toolbar has focus, because the local
@@ -354,6 +412,8 @@ private final class SelectionView: NSView {
             NSEvent.removeMonitor(keyMonitor)
         }
         keyMonitor = nil
+        sessionCancellable?.cancel()
+        sessionCancellable = nil
         removeToolbar()
         removeTextField()
     }
@@ -368,8 +428,16 @@ private final class SelectionView: NSView {
     private func finish(_ output: CaptureSession.Output) {
         guard let selection else { return }
         let global = selection.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
+        let payload = CapturePayload(
+            rect: global,
+            screen: screen,
+            annotations: session.annotations,
+            base: baseImage,
+            watermark: session.watermarkEnabled ? session.watermarkText : nil,
+            watermarkVisible: !session.watermarkHidden
+        )
         teardown()
-        onCapture?(global, screen, session.annotations, output)
+        onCapture?(payload, output)
     }
 
     private func installToolbar() {
@@ -519,6 +587,9 @@ private final class SelectionView: NSView {
             }
             draft = nil
             penPoints = []
+
+        case .resizing:
+            loadBase()
 
         default:
             break

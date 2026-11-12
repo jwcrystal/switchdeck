@@ -46,7 +46,7 @@ enum AnnotationRenderer {
     /// Rendering into an `NSBitmapImageRep` (one point per pixel) keeps the
     /// output at the capture's pixel size; drawing into an `NSImage(size:)`
     /// would rasterise it again at the screen's backing scale.
-    static func render(base: CGImage, annotations: [Annotation]) -> NSImage {
+    static func render(base: CGImage, annotations: [Annotation], watermark: String? = nil) -> NSImage {
         let width = base.width
         let height = base.height
         let rect = CGRect(x: 0, y: 0, width: width, height: height)
@@ -75,6 +75,9 @@ enum AnnotationRenderer {
 
         for annotation in annotations {
             draw(annotation, in: rect, base: base)
+        }
+        if let watermark {
+            drawWatermark(watermark, in: rect)
         }
         NSGraphicsContext.restoreGraphicsState()
 
@@ -208,6 +211,26 @@ enum AnnotationRenderer {
                     .draw(at: NSPoint(x: origin.x, y: origin.y - fontSize))
             }
         }
+    }
+
+    // MARK: - Watermark
+
+    static func drawWatermark(_ text: String, in rect: CGRect) {
+        let font = NSFont.systemFont(ofSize: max(12, rect.width * 0.02), weight: .semibold)
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor(white: 0, alpha: 0.35)
+        shadow.shadowBlurRadius = 3
+        shadow.shadowOffset = .zero
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor(white: 1, alpha: 0.6),
+            .shadow: shadow,
+        ]
+        let string = NSAttributedString(string: text, attributes: attributes)
+        let size = string.size()
+        let margin = max(10, rect.width * 0.012)
+        string.draw(at: NSPoint(x: rect.maxX - size.width - margin, y: rect.minY + margin))
     }
 
     // MARK: - Arrows

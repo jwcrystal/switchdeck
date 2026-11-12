@@ -67,6 +67,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.screenshot.beginDemoCopy()
             }
         }
+
+        if CommandLine.arguments.contains("--capture-compare") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginDemo()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                self?.screenshot.compareCaptures()
+            }
+        }
     }
 
     /// The single place the app asks for permissions: shown at launch while

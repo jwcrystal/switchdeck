@@ -53,6 +53,13 @@ final class CaptureSession: ObservableObject {
     @Published var textBubble = false
     @Published var arrowStyle: ArrowStyle = .straight
     @Published var annotations: [Annotation] = []
+    @Published var watermarkEnabled = false
+    @Published var watermarkHidden = false
+
+    let watermarkText: String = {
+        let name = NSFullUserName()
+        return name.isEmpty ? "SwitchDeck" : name
+    }()
 
     var onUndo: () -> Void = {}
     var onCopy: () -> Void = {}
@@ -61,6 +68,18 @@ final class CaptureSession: ObservableObject {
     var onClose: () -> Void = {}
 
     var canUndo: Bool { !annotations.isEmpty }
+}
+
+/// Everything the overlay hands to the coordinator when the user finishes.
+struct CapturePayload {
+    let rect: CGRect
+    let screen: NSScreen
+    let annotations: [Annotation]
+    let base: CGImage?
+    /// Watermark text to keep (also when it is hidden on the image).
+    let watermark: String?
+    /// False when the watermark should be invisible but still recorded.
+    let watermarkVisible: Bool
 }
 
 struct CaptureToolbarView: View {
@@ -119,6 +138,10 @@ struct CaptureToolbarView: View {
                 arrowStyleButton(.curved, symbol: "arrow.up.right")
                 arrowStyleButton(.elbow, symbol: "arrow.turn.right.down")
             }
+
+            Divider().frame(height: 18)
+
+            watermarkButton
 
             Divider().frame(height: 18)
 
@@ -208,6 +231,45 @@ struct CaptureToolbarView: View {
         }
         .buttonStyle(.plain)
         .help(style == .straight ? "Straight arrow" : style == .curved ? "Curved arrow" : "Elbow arrow")
+    }
+
+    private var watermarkButton: some View {
+        HStack(spacing: 2) {
+            Button {
+                session.watermarkEnabled.toggle()
+                if !session.watermarkEnabled { session.watermarkHidden = false }
+            } label: {
+                Image(systemName: "signature")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .frame(width: 24, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(session.watermarkEnabled ? Color.accentColor.opacity(0.14) : .clear)
+                    )
+                    .foregroundStyle(session.watermarkEnabled ? Color.accentColor : .secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Watermark: \(session.watermarkText)")
+
+            if session.watermarkEnabled {
+                Button {
+                    session.watermarkHidden.toggle()
+                } label: {
+                    Image(systemName: session.watermarkHidden ? "eye.slash" : "eye")
+                        .font(.system(size: 12.5, weight: .medium))
+                        .frame(width: 24, height: 26)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(session.watermarkHidden ? Color.orange.opacity(0.16) : .clear)
+                        )
+                        .foregroundStyle(session.watermarkHidden ? Color.orange : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help(session.watermarkHidden
+                    ? "Watermark hidden; text is kept in the file metadata"
+                    : "Hide the watermark but keep its text")
+            }
+        }
     }
 
     private func icon(
