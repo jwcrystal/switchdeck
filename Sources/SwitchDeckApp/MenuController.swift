@@ -20,7 +20,6 @@ final class MenuController: NSObject, NSMenuDelegate {
     private var cancellables: Set<AnyCancellable> = []
     private var isMenuOpen = false
     private var needsRebuild = false
-    private var subtitleColumn: CGFloat = 220
 
     var openSettings: () -> Void = {}
     var openPermissions: () -> Void = {}
@@ -64,17 +63,6 @@ final class MenuController: NSObject, NSMenuDelegate {
         return parts.isEmpty ? nil : parts.joined(separator: "  ")
     }
 
-    /// Widest title plus a gap plus widest subtitle, so long subtitles such as
-    /// "Auto-unlocks in 5 min" never start right after the title.
-    private func updateSubtitleColumn() {
-        let titleWidth = model.menuItems.map { MenuTitle.width(of: $0.title) }.max() ?? 0
-        let subtitleWidth = model.menuItems
-            .compactMap { menuSubtitle(for: $0) }
-            .map { MenuTitle.width(of: $0) }
-            .max() ?? 0
-        subtitleColumn = ceil(titleWidth) + 28 + ceil(subtitleWidth)
-    }
-
     // MARK: - Menu construction
 
     private func rebuild() {
@@ -87,7 +75,6 @@ final class MenuController: NSObject, NSMenuDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
-        updateSubtitleColumn()
 
         // Belt and braces: even if a config ever lists an id twice, the menu
         // shows each switch once.
@@ -97,7 +84,7 @@ final class MenuController: NSObject, NSMenuDelegate {
             menuItem.target = self
             menuItem.representedObject = ItemBox(item)
             menuItem.image = symbol(item.symbolName)
-            menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item), column: subtitleColumn)
+            menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item))
 
             let actions = item.actions()
             if !actions.isEmpty {
@@ -118,12 +105,12 @@ final class MenuController: NSObject, NSMenuDelegate {
         permissionsItem.image = symbol("checkmark.shield")
         menu.addItem(permissionsItem)
 
-        let settings = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
+        let settings = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: "")
         settings.target = self
         settings.image = symbol("gearshape")
         menu.addItem(settings)
 
-        let quit = NSMenuItem(title: "Quit SwitchDeck", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit SwitchDeck", action: #selector(quit), keyEquivalent: "")
         quit.target = self
         menu.addItem(quit)
 
@@ -151,12 +138,11 @@ final class MenuController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         isMenuOpen = true
-        updateSubtitleColumn()
         for menuItem in menu.items {
             guard let box = menuItem.representedObject as? ItemBox else { continue }
             let item = box.item
             menuItem.state = (item.kind == .toggle && item.state()) ? .on : .off
-            menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item), column: subtitleColumn)
+            menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item))
         }
     }
 

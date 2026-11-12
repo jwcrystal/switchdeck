@@ -22,7 +22,7 @@ public final class KeyboardLockSwitch {
 
     public var subtitle: String? {
         guard isLocked else { return nil }
-        return "Auto-unlocks in 5 min"
+        return "Auto-unlock 5m"
     }
 
     public func lock() throws {
