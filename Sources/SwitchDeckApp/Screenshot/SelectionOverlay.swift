@@ -535,6 +535,10 @@ final class SelectionView: NSView {
             self.scrollHUD?.update(height: scroll.totalHeight)
             self.needsDisplay = true
         }
+        scroll.onNeedsOverlap = { [weak self] in
+            guard let self, let scroll = self.scrolling else { return }
+            self.scrollHUD?.showNeedsOverlap(height: scroll.totalHeight)
+        }
         scroll.onFinish = { [weak self] image in self?.finishScrolling(image) }
 
         scrolling = scroll

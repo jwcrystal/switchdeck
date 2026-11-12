@@ -14,11 +14,13 @@ final class ScrollingCapture {
     private var idleTicks = 0
     private var busy = false
     private var finishRequested = false
+    private var unmatchedFrames = 0
 
     private(set) var isRunning = false
     private(set) var totalHeight = 0
 
     var onUpdate: (() -> Void)?
+    var onNeedsOverlap: (() -> Void)?
     var onFinish: ((CGImage?) -> Void)?
 
     init(region: CGRect, capture: @escaping () async -> CGImage?) {
@@ -58,6 +60,7 @@ final class ScrollingCapture {
         timer = nil
         onFinish = nil
         onUpdate = nil
+        onNeedsOverlap = nil
     }
 
     private func complete() {
@@ -93,13 +96,21 @@ final class ScrollingCapture {
             return
         }
 
-        let fullShift = pixelShift(from: previous, to: frame)
+        guard let fullShift = pixelShift(from: previous, to: frame) else {
+            unmatchedFrames += 1
+            log("unmatched=\(unmatchedFrames)")
+            if unmatchedFrames >= 3 { onNeedsOverlap?() }
+            return
+        }
+        let recoveredOverlap = unmatchedFrames > 0
+        unmatchedFrames = 0
 
         guard fullShift > 0 else {
             idleTicks += 1
             log("shift=0 idle=\(idleTicks)")
             // A pause or an unmatchable animation is not a request to finish.
             // Keep the last accepted frame as the stitching anchor.
+            if recoveredOverlap { onUpdate?() }
             return
         }
 
@@ -176,12 +187,12 @@ final class ScrollingCapture {
     /// Debug: reports the detected shift between two frames (full-resolution rows).
     static func detectShift(from previous: CGImage, to current: CGImage) -> Int {
         let probe = ScrollingCapture(region: .zero, capture: { nil })
-        return probe.pixelShift(from: previous, to: current)
+        return probe.pixelShift(from: previous, to: current) ?? 0
     }
 
     private func grayscale(_ image: CGImage, nativeRows: Bool = false) -> ([UInt8], Int, Int) {
         let scale = min(1, Double(sampleWidth) / Double(image.width), 480.0 / Double(image.height))
-        let width = nativeRows ? min(96, image.width) : max(1, Int(Double(image.width) * scale))
+        let width = nativeRows ? min(512, image.width) : max(1, Int(Double(image.width) * scale))
         let height = nativeRows ? image.height : max(1, Int(Double(image.height) * scale))
 
         var data = [UInt8](repeating: 0, count: width * height)
@@ -222,15 +233,15 @@ final class ScrollingCapture {
         return Double(total) / Double(max(1, count))
     }
 
-    private func pixelShift(from previous: CGImage, to current: CGImage) -> Int {
-        guard previous.width == current.width, previous.height == current.height else { return 0 }
+    private func pixelShift(from previous: CGImage, to current: CGImage) -> Int? {
+        guard previous.width == current.width, previous.height == current.height else { return nil }
         let a = grayscale(previous), b = grayscale(current)
         let stationary = difference(previous: a, current: b, shift: 0)
         guard stationary > 0.5 else { return 0 }
         // At least a quarter of the frame must still overlap. Searching only
         // around height/4 silently lost ordinary, faster wheel gestures.
         let maxShift = b.2 - max(12, b.2 / 4)
-        guard maxShift > 0 else { return 0 }
+        guard maxShift > 0 else { return nil }
         var candidates: [(shift: Int, score: Double)] = [(0, stationary)]
         for shift in 1...maxShift {
             let score = difference(previous: a, current: b, shift: shift)
@@ -266,7 +277,46 @@ final class ScrollingCapture {
                 pixelShift = shift
             }
         }
-        guard pixelScore < 12, pixelScore < zeroScore * 0.75 else { return 0 }
+        guard pixelScore < 12, pixelScore < zeroScore * 0.75 else { return nil }
+        let mismatch = edgeMismatch(previous: nativeA, current: nativeB, shift: pixelShift)
+        guard mismatch.overall < 0.10, mismatch.worstTile < 0.35 else { return nil }
         return pixelShift
+    }
+
+    /// Normalise edge mismatch by actual content contrast. Large blank/dark
+    /// areas must not make unrelated text look like a good overlapping match.
+    private func edgeMismatch(
+        previous: ([UInt8], Int, Int), current: ([UInt8], Int, Int), shift: Int
+    ) -> (overall: Double, worstTile: Double) {
+        let width = min(previous.1, current.1)
+        let overlap = min(previous.2, current.2) - shift
+        guard width > 2, overlap > 2 else { return (1, 1) }
+        var error = 0, contrast = 0
+        var tileErrors = [Int](repeating: 0, count: 128)
+        var tileContrasts = [Int](repeating: 0, count: 128)
+        for y in stride(from: 1, to: overlap - 1, by: max(1, overlap / 192)) {
+            for x in stride(from: 1, to: width - 1, by: max(1, width / 256)) {
+                let p = (y + shift) * previous.1 + x
+                let c = y * current.1 + x
+                let px = Int(previous.0[p + 1]) - Int(previous.0[p - 1])
+                let cx = Int(current.0[c + 1]) - Int(current.0[c - 1])
+                let py = Int(previous.0[p + previous.1]) - Int(previous.0[p - previous.1])
+                let cy = Int(current.0[c + current.1]) - Int(current.0[c - current.1])
+                let difference = abs(px - cx) + abs(py - cy)
+                let signal = abs(px) + abs(cx) + abs(py) + abs(cy)
+                error += difference
+                contrast += signal
+                let tile = (y * 8 / overlap) * 16 + x * 16 / width
+                tileErrors[tile] += difference
+                tileContrasts[tile] += signal
+            }
+        }
+        // A mostly repeated paragraph can have a low overall error while one
+        // distinctive word/number is different. Verify local tiles as well.
+        var worst = 0.0
+        for tile in 0..<128 where tileContrasts[tile] > max(200, contrast / 500) {
+            worst = max(worst, Double(tileErrors[tile]) / Double(tileContrasts[tile]))
+        }
+        return contrast > 0 ? (Double(error) / Double(contrast), worst) : (1, 1)
     }
 }

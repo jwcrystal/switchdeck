@@ -68,7 +68,15 @@ final class ScrollHUD: NSPanel {
     override var canBecomeMain: Bool { false }
 
     func update(height: Int) {
+        titleLabel.stringValue = "Scrolling capture"
+        detail.textColor = .secondaryLabelColor
         detail.stringValue = "\(height) px · scroll, then Done"
+    }
+
+    func showNeedsOverlap(height: Int) {
+        titleLabel.stringValue = "Waiting for overlap"
+        detail.textColor = .systemOrange
+        detail.stringValue = "\(height) px · scroll back slowly"
     }
 
     /// Puts the panel just outside the selection, inside the screen.

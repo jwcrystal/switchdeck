@@ -52,6 +52,44 @@ final class ScrollingCaptureTests: XCTestCase {
     }
 
     @MainActor
+    func testDarkTextFramesWithoutOverlapAreNotStitched() throws {
+        _ = NSApplication.shared
+        let width = 1536, height = 2400
+        let context = try XCTUnwrap(CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(NSColor(calibratedWhite: 0.10, alpha: 1).cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+        for row in 0..<75 {
+            let text = "Context mode — entry \(row): " + String(repeating: "capture rows \(row % 7) ", count: 2 + row % 5)
+            (text as NSString).draw(
+                at: CGPoint(x: 24, y: height - 35 - row * 30),
+                withAttributes: [
+                    .font: NSFont.monospacedSystemFont(ofSize: 20, weight: .regular),
+                    .foregroundColor: NSColor(calibratedWhite: 0.5, alpha: 1),
+                ]
+            )
+        }
+        NSGraphicsContext.restoreGraphicsState()
+        let document = try XCTUnwrap(context.makeImage())
+        let a = try XCTUnwrap(document.cropping(to: CGRect(x: 0, y: 0, width: width, height: 422)))
+        for offset in [3, 16, 41, 90, 160, 240, 300] {
+            let b = try XCTUnwrap(document.cropping(to: CGRect(x: 0, y: offset, width: width, height: 422)))
+            XCTAssertEqual(ScrollingCapture.detectShift(from: a, to: b), offset)
+        }
+        for offset in [450, 600, 840] {
+            let b = try XCTUnwrap(document.cropping(to: CGRect(x: 0, y: offset, width: width, height: 422)))
+            XCTAssertEqual(ScrollingCapture.detectShift(from: a, to: b), 0, "No overlap at offset \(offset)")
+            XCTAssertEqual(ScrollingCapture.debugStitch([a, b]), 422)
+        }
+    }
+
+    @MainActor
     func testUnmatchedFrameDoesNotReplaceTheLastGoodAnchor() {
         let a = Self.frame(offset: 0), b = Self.frame(offset: 41)
         let unrelated = Self.frame(offset: 1200)
@@ -106,6 +144,37 @@ final class ScrollingCaptureTests: XCTestCase {
         continuation?.resume(returning: Self.frame(offset: 0))
         await fulfillment(of: [finished], timeout: 1)
         XCTAssertEqual(finishCount, 1)
+    }
+
+    @MainActor
+    func testLostOverlapWarnsAndCanRecoverWithoutGrowingIncorrectly() async {
+        let a = Self.frame(offset: 0)
+        let unrelated = Self.frame(offset: 1200)
+        var current = a
+        let warning = expectation(description: "Unmatchable movement is reported")
+        let recovered = expectation(description: "Matching resumes from the last good frame")
+        var warned = false, didRecover = false
+        let capture = ScrollingCapture(region: .zero) { current }
+        capture.onNeedsOverlap = {
+            if !warned { warned = true; warning.fulfill() }
+        }
+        capture.onUpdate = { [weak capture] in
+            if capture?.totalHeight == 521, !didRecover {
+                didRecover = true
+                recovered.fulfill()
+            }
+        }
+        capture.start()
+        let initial = expectation(description: "Initial frame")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { initial.fulfill() }
+        await fulfillment(of: [initial], timeout: 1)
+        current = unrelated
+        await fulfillment(of: [warning], timeout: 2)
+        XCTAssertEqual(capture.totalHeight, 480)
+        current = Self.frame(offset: 41)
+        await fulfillment(of: [recovered], timeout: 2)
+        capture.stop()
+        capture.cancel()
     }
 
     @MainActor
