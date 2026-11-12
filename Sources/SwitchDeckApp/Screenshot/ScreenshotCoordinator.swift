@@ -35,6 +35,18 @@ final class ScreenshotCoordinator {
         start(initialSelection: CGRect(x: 300, y: 240, width: 900, height: 520))
     }
 
+    /// Debug: demo plus a tiled, rotated watermark.
+    func beginWatermarkDemo() {
+        beginDemo()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            guard let self else { return }
+            self.selections.session.watermarkEnabled = true
+            self.selections.session.watermarkPlacement = .tiled
+            self.selections.session.watermarkRotation = -30
+            self.selections.session.watermarkOpacity = 0.25
+        }
+    }
+
     /// Debug: compares a normal capture with one that excludes SwitchDeck while
     /// the overlay is up, to prove the overlay is not baked into the image.
     func compareCaptures() {
@@ -135,7 +147,7 @@ final class ScreenshotCoordinator {
         NSPasteboard.general.writeObjects([image])
     }
 
-    private func save(_ image: NSImage, watermark: String?) {
+    private func save(_ image: NSImage, watermark: AnnotationRenderer.WatermarkOptions?) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
         panel.nameFieldStringValue = "Screenshot \(Self.stamp()).png"
@@ -153,7 +165,7 @@ final class ScreenshotCoordinator {
                1,
                nil
            ) {
-            let properties: [CFString: Any] = [kCGImagePropertyPNGDescription: watermark]
+            let properties: [CFString: Any] = [kCGImagePropertyPNGDescription: watermark.text]
             CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
             guard CGImageDestinationFinalize(destination) else {
                 present(ScreenCaptureService.CaptureError.captureFailed("The PNG could not be written."))

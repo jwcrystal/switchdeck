@@ -55,11 +55,26 @@ final class CaptureSession: ObservableObject {
     @Published var annotations: [Annotation] = []
     @Published var watermarkEnabled = false
     @Published var watermarkHidden = false
+    @Published var watermarkPlacement: AnnotationRenderer.WatermarkOptions.Placement = .bottomRight
+    @Published var watermarkScale: CGFloat = 0.02
+    @Published var watermarkRotation: CGFloat = 0
+    @Published var watermarkOpacity: CGFloat = 0.6
 
     let watermarkText: String = {
         let name = NSFullUserName()
         return name.isEmpty ? "SwitchDeck" : name
     }()
+
+    var watermarkOptions: AnnotationRenderer.WatermarkOptions? {
+        guard watermarkEnabled else { return nil }
+        return .init(
+            text: watermarkText,
+            placement: watermarkPlacement,
+            scale: watermarkScale,
+            rotation: watermarkRotation,
+            opacity: watermarkOpacity
+        )
+    }
 
     var onUndo: () -> Void = {}
     var onCopy: () -> Void = {}
@@ -76,14 +91,15 @@ struct CapturePayload {
     let screen: NSScreen
     let annotations: [Annotation]
     let base: CGImage?
-    /// Watermark text to keep (also when it is hidden on the image).
-    let watermark: String?
+    /// Watermark to keep (also when it is hidden on the image).
+    let watermark: AnnotationRenderer.WatermarkOptions?
     /// False when the watermark should be invisible but still recorded.
     let watermarkVisible: Bool
 }
 
 struct CaptureToolbarView: View {
     @ObservedObject var session: CaptureSession
+    @State private var showWatermarkSettings = false
 
     var body: some View {
         HStack(spacing: 5) {
@@ -268,6 +284,20 @@ struct CaptureToolbarView: View {
                 .help(session.watermarkHidden
                     ? "Watermark hidden; text is kept in the file metadata"
                     : "Hide the watermark but keep its text")
+
+                Button {
+                    showWatermarkSettings.toggle()
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 12.5, weight: .medium))
+                        .frame(width: 24, height: 26)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Watermark position, size, rotation and opacity")
+                .popover(isPresented: $showWatermarkSettings, arrowEdge: .bottom) {
+                    WatermarkSettingsView(session: session)
+                }
             }
         }
     }
@@ -288,5 +318,70 @@ struct CaptureToolbarView: View {
         .foregroundStyle(enabled ? Color.secondary : Color.secondary.opacity(0.35))
         .disabled(!enabled)
         .help(help)
+    }
+}
+
+private struct WatermarkSettingsView: View {
+    @ObservedObject var session: CaptureSession
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Watermark")
+                .font(.headline)
+
+            Picker("Position", selection: $session.watermarkPlacement) {
+                ForEach(AnnotationRenderer.WatermarkOptions.Placement.allCases) { placement in
+                    Label(placement.title, systemImage: placement.symbol).tag(placement)
+                }
+            }
+            .pickerStyle(.menu)
+
+            HStack(spacing: 6) {
+                Text("Size")
+                    .frame(width: 54, alignment: .leading)
+                    .foregroundStyle(.secondary)
+                sizeButton(0.014, "S")
+                sizeButton(0.02, "M")
+                sizeButton(0.03, "L")
+            }
+
+            HStack(spacing: 6) {
+                Text("Angle")
+                    .frame(width: 54, alignment: .leading)
+                    .foregroundStyle(.secondary)
+                angleButton(0, "0°")
+                angleButton(-30, "30°")
+                angleButton(-45, "45°")
+            }
+
+            HStack(spacing: 6) {
+                Text("Opacity")
+                    .frame(width: 54, alignment: .leading)
+                    .foregroundStyle(.secondary)
+                Slider(value: $session.watermarkOpacity, in: 0.15...1)
+                Text("\(Int(session.watermarkOpacity * 100))%")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .frame(width: 36, alignment: .trailing)
+            }
+        }
+        .padding(14)
+        .frame(width: 290)
+    }
+
+    private func sizeButton(_ scale: CGFloat, _ title: String) -> some View {
+        Button(title) {
+            session.watermarkScale = scale
+        }
+        .buttonStyle(.bordered)
+        .tint(session.watermarkScale == scale ? .accentColor : nil)
+    }
+
+    private func angleButton(_ angle: CGFloat, _ title: String) -> some View {
+        Button(title) {
+            session.watermarkRotation = angle
+        }
+        .buttonStyle(.bordered)
+        .tint(session.watermarkRotation == angle ? .accentColor : nil)
     }
 }

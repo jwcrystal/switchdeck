@@ -62,6 +62,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        if CommandLine.arguments.contains("--watermark-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginWatermarkDemo()
+            }
+        }
+
         if CommandLine.arguments.contains("--copy-demo") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 self?.screenshot.beginDemoCopy()

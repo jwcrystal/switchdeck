@@ -197,8 +197,8 @@ private final class SelectionView: NSView {
                 NSImage(cgImage: baseImage, size: selection.size).draw(in: selection)
             }
             drawAnnotations(in: selection)
-            if session.watermarkEnabled, !session.watermarkHidden {
-                AnnotationRenderer.drawWatermark(session.watermarkText, in: selection)
+            if let options = session.watermarkOptions, !session.watermarkHidden {
+                AnnotationRenderer.drawWatermark(options, in: selection)
             }
             let stroke = NSBezierPath(rect: selection)
             stroke.lineWidth = 1
@@ -433,7 +433,7 @@ private final class SelectionView: NSView {
             screen: screen,
             annotations: session.annotations,
             base: baseImage,
-            watermark: session.watermarkEnabled ? session.watermarkText : nil,
+            watermark: session.watermarkOptions,
             watermarkVisible: !session.watermarkHidden
         )
         teardown()

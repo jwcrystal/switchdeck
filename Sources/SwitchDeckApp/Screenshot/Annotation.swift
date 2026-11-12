@@ -46,7 +46,7 @@ enum AnnotationRenderer {
     /// Rendering into an `NSBitmapImageRep` (one point per pixel) keeps the
     /// output at the capture's pixel size; drawing into an `NSImage(size:)`
     /// would rasterise it again at the screen's backing scale.
-    static func render(base: CGImage, annotations: [Annotation], watermark: String? = nil) -> NSImage {
+    static func render(base: CGImage, annotations: [Annotation], watermark: WatermarkOptions? = nil) -> NSImage {
         let width = base.width
         let height = base.height
         let rect = CGRect(x: 0, y: 0, width: width, height: height)
@@ -215,8 +215,48 @@ enum AnnotationRenderer {
 
     // MARK: - Watermark
 
-    static func drawWatermark(_ text: String, in rect: CGRect) {
-        let font = NSFont.systemFont(ofSize: max(12, rect.width * 0.02), weight: .semibold)
+    struct WatermarkOptions {
+        enum Placement: String, CaseIterable, Identifiable {
+            case bottomRight, bottomLeft, topRight, topLeft, center, tiled
+
+            var id: String { rawValue }
+
+            var title: String {
+                switch self {
+                case .bottomRight: return "Bottom Right"
+                case .bottomLeft: return "Bottom Left"
+                case .topRight: return "Top Right"
+                case .topLeft: return "Top Left"
+                case .center: return "Center"
+                case .tiled: return "Tiled"
+                }
+            }
+
+            var symbol: String {
+                switch self {
+                case .bottomRight: return "arrow.down.right"
+                case .bottomLeft: return "arrow.down.left"
+                case .topRight: return "arrow.up.right"
+                case .topLeft: return "arrow.up.left"
+                case .center: return "dot.squareshape"
+                case .tiled: return "square.grid.3x3"
+                }
+            }
+        }
+
+        var text: String
+        var placement: Placement = .bottomRight
+        /// Font size relative to the image width.
+        var scale: CGFloat = 0.02
+        /// Degrees, counter-clockwise.
+        var rotation: CGFloat = 0
+        var opacity: CGFloat = 0.6
+    }
+
+    static func drawWatermark(_ options: WatermarkOptions, in rect: CGRect) {
+        guard !options.text.isEmpty else { return }
+
+        let font = NSFont.systemFont(ofSize: max(10, rect.width * options.scale), weight: .semibold)
         let shadow = NSShadow()
         shadow.shadowColor = NSColor(white: 0, alpha: 0.35)
         shadow.shadowBlurRadius = 3
@@ -224,13 +264,62 @@ enum AnnotationRenderer {
 
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor(white: 1, alpha: 0.6),
+            .foregroundColor: NSColor(white: 1, alpha: options.opacity),
             .shadow: shadow,
         ]
-        let string = NSAttributedString(string: text, attributes: attributes)
+        let string = NSAttributedString(string: options.text, attributes: attributes)
         let size = string.size()
-        let margin = max(10, rect.width * 0.012)
-        string.draw(at: NSPoint(x: rect.maxX - size.width - margin, y: rect.minY + margin))
+        let margin = max(10, rect.width * 0.015)
+
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+
+        if options.placement == .tiled {
+            let context = NSGraphicsContext.current?.cgContext
+            context?.translateBy(x: rect.midX, y: rect.midY)
+            context?.rotate(by: (options.rotation - 30) * .pi / 180)
+
+            let stepX = size.width + rect.width * 0.08
+            let stepY = size.height * 3.2
+            var y = -rect.height
+            while y < rect.height {
+                var x = -rect.width
+                while x < rect.width {
+                    string.draw(at: NSPoint(x: x, y: y))
+                    x += stepX
+                }
+                y += stepY
+            }
+            return
+        }
+
+        let origin: NSPoint
+        switch options.placement {
+        case .bottomRight:
+            origin = NSPoint(x: rect.maxX - size.width - margin, y: rect.minY + margin)
+        case .bottomLeft:
+            origin = NSPoint(x: rect.minX + margin, y: rect.minY + margin)
+        case .topRight:
+            origin = NSPoint(x: rect.maxX - size.width - margin, y: rect.maxY - size.height - margin)
+        case .topLeft:
+            origin = NSPoint(x: rect.minX + margin, y: rect.maxY - size.height - margin)
+        case .center, .tiled:
+            origin = NSPoint(
+                x: rect.midX - size.width / 2,
+                y: rect.midY - size.height / 2
+            )
+        }
+
+        if options.rotation != 0 {
+            let center = NSPoint(x: origin.x + size.width / 2, y: origin.y + size.height / 2)
+            let transform = NSAffineTransform()
+            transform.translateX(by: center.x, yBy: center.y)
+            transform.rotate(byDegrees: options.rotation)
+            transform.translateX(by: -center.x, yBy: -center.y)
+            transform.concat()
+        }
+
+        string.draw(at: origin)
     }
 
     // MARK: - Arrows
