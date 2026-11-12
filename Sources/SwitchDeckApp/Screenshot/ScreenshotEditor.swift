@@ -55,6 +55,8 @@ final class EditorModel: ObservableObject {
     @Published var tool: Tool = .rectangle
     @Published var color: Color = .red
     @Published var lineWidth: CGFloat = 0.004
+    @Published var textScale: CGFloat = 0.022
+    @Published var textBubble = false
     @Published var nextNumber = 1
     @Published var draft: Annotation?
     @Published var textDraft: TextDraft?
@@ -78,7 +80,13 @@ final class EditorModel: ObservableObject {
     // MARK: - Editing
 
     func commit(_ shape: Annotation.Shape) {
-        annotations.append(Annotation(shape: shape, color: color, lineWidth: lineWidth))
+        annotations.append(Annotation(
+            shape: shape,
+            color: color,
+            lineWidth: lineWidth,
+            textScale: textScale,
+            textBubble: textBubble
+        ))
         if case .number = shape {
             nextNumber += 1
         }
@@ -253,6 +261,12 @@ struct ScreenshotEditorView: View {
             thicknessButton(0.003, lineWidth: 1.4)
             thicknessButton(0.006, lineWidth: 3.0)
 
+            if model.tool == .text {
+                Divider().frame(height: 18)
+                textSizeButton
+                bubbleButton
+            }
+
             Spacer(minLength: 10)
 
             iconButton("arrow.uturn.backward", help: "Undo (⌘Z)") { model.undo() }
@@ -306,6 +320,40 @@ struct ScreenshotEditorView: View {
         }
         .buttonStyle(.plain)
         .help(width < 0.005 ? "Thin line" : "Thick line")
+    }
+
+    private var textSizeButton: some View {
+        Button {
+            switch model.textScale {
+            case ..<0.019: model.textScale = 0.022
+            case ..<0.026: model.textScale = 0.030
+            default: model.textScale = 0.016
+            }
+        } label: {
+            Image(systemName: "textformat.size")
+                .font(.system(size: 13, weight: .medium))
+                .frame(width: 26, height: 28)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help("Text size (S / M / L)")
+    }
+
+    private var bubbleButton: some View {
+        Button {
+            model.textBubble.toggle()
+        } label: {
+            Image(systemName: "bubble.left")
+                .font(.system(size: 13, weight: .medium))
+                .frame(width: 26, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(model.textBubble ? Color.accentColor.opacity(0.14) : .clear)
+                )
+                .foregroundStyle(model.textBubble ? Color.accentColor : .secondary)
+        }
+        .buttonStyle(.plain)
+        .help("Filled bubble behind the text")
     }
 
     private func iconButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
@@ -573,11 +621,24 @@ private struct AnnotationCanvas: View {
             context.stroke(Path(rect), with: .color(.white.opacity(0.55)), lineWidth: 1)
 
         case .text(let text, let at):
+            let fontSize = max(12, size.width * annotation.textScale)
             let resolved = context.resolve(
                 Text(text)
-                    .font(.system(size: max(12, size.width * 0.022), weight: .semibold))
-                    .foregroundColor(color)
+                    .font(.system(size: fontSize, weight: .semibold))
+                    .foregroundColor(annotation.textBubble ? .white : color)
             )
+            if annotation.textBubble {
+                let textSize = resolved.measure(in: CGSize(width: CGFloat.infinity, height: CGFloat.infinity))
+                let padding = fontSize * 0.55
+                let origin = scale(at)
+                let bubbleSize = CGSize(width: textSize.width + padding * 2, height: textSize.height + padding * 1.2)
+                let bubbleOrigin = CGPoint(x: origin.x - padding, y: origin.y - padding * 0.4)
+                let bubble = CGRect(origin: bubbleOrigin, size: bubbleSize)
+                context.fill(
+                    Path(roundedRect: bubble, cornerRadius: fontSize * 0.6),
+                    with: .color(color)
+                )
+            }
             context.draw(resolved, at: scale(at), anchor: .topLeading)
         }
     }

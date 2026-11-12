@@ -24,6 +24,10 @@ struct Annotation {
     var color: Color
     /// Stroke width relative to the image width.
     var lineWidth: CGFloat = 0.004
+    /// Font size relative to the image width. Only used by text.
+    var textScale: CGFloat = 0.022
+    /// Draw text inside a filled bubble instead of directly on the image.
+    var textBubble: Bool = false
 
     static let palette: [Color] = [.red, .yellow, .blue, .white, .black]
 }
@@ -211,14 +215,34 @@ enum AnnotationRenderer {
             path.stroke()
 
         case .text(let text, let at):
-            let fontSize = max(12, width * 0.022)
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
-                .foregroundColor: color,
-            ]
+            let fontSize = max(12, width * annotation.textScale)
             let origin = point(at)
-            NSAttributedString(string: text, attributes: attributes)
-                .draw(at: NSPoint(x: origin.x, y: origin.y - fontSize))
+
+            if annotation.textBubble {
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
+                    .foregroundColor: NSColor.white,
+                ]
+                let string = NSAttributedString(string: text, attributes: attributes)
+                let textSize = string.size()
+                let padding = fontSize * 0.55
+                let bubble = NSRect(
+                    x: origin.x - padding,
+                    y: origin.y - textSize.height - padding * 0.4,
+                    width: textSize.width + padding * 2,
+                    height: textSize.height + padding * 1.2
+                )
+                color.setFill()
+                NSBezierPath(roundedRect: bubble, xRadius: fontSize * 0.6, yRadius: fontSize * 0.6).fill()
+                string.draw(at: NSPoint(x: origin.x, y: origin.y - textSize.height))
+            } else {
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
+                    .foregroundColor: color,
+                ]
+                NSAttributedString(string: text, attributes: attributes)
+                    .draw(at: NSPoint(x: origin.x, y: origin.y - fontSize))
+            }
         }
     }
 }

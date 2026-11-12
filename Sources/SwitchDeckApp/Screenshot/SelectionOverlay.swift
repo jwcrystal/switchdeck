@@ -150,7 +150,7 @@ private final class SelectionView: NSView {
 
             drawHandles(for: selection)
             drawLabel(sizeText(for: selection), above: selection)
-            drawHint("Enter to capture · drag a handle to adjust · Esc to clear")
+            drawHint("Enter to edit · drag a handle to adjust · Esc to clear")
         } else if let hovered, interaction.isIdle {
             let stroke = NSBezierPath(rect: hovered.rect)
             stroke.lineWidth = 1
@@ -302,7 +302,14 @@ private final class SelectionView: NSView {
 
         defer { needsDisplay = true }
 
-        if wasCreating, let selection, selection.width < 4 || selection.height < 4 {
+        if wasCreating, let selection, selection.width >= 4, selection.height >= 4 {
+            // Release goes straight into the editor at the selection; no extra
+            // confirm step. Enter stays available for a restored selection.
+            confirm()
+            return
+        }
+
+        if wasCreating {
             self.selection = nil
 
             if let hovered = windowUnderMouse(point) {

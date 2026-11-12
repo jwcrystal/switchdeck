@@ -36,11 +36,32 @@ final class ScreenshotCoordinator {
         Task {
             do {
                 let image = try await capture(request)
-                showEditor(with: image)
+                showEditor(with: image, placement: placement(for: request))
             } catch {
                 present(error)
             }
         }
+    }
+
+    private func placement(for request: CaptureRequest) -> CGRect? {
+        switch request {
+        case .region(let rect, _):
+            return rect
+        case .window(let id):
+            return Self.windowBounds(id: id)
+        }
+    }
+
+    private static func windowBounds(id: CGWindowID) -> CGRect? {
+        let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as? [[String: Any]] ?? []
+        guard let info = list.first,
+              let dict = info[kCGWindowBounds as String] as? NSDictionary,
+              let rect = CGRect(dictionaryRepresentation: dict)
+        else { return nil }
+
+        let primaryHeight = NSScreen.screens.first(where: { $0.frame.origin == .zero })?.frame.height
+            ?? NSScreen.screens.first?.frame.height ?? 0
+        return CGRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
     }
 
     private func capture(_ request: CaptureRequest) async throws -> CGImage {
@@ -60,8 +81,8 @@ final class ScreenshotCoordinator {
         }
     }
 
-    private func showEditor(with image: CGImage) {
-        let controller = ScreenshotEditorController(image: image) { [weak self] in
+    private func showEditor(with image: CGImage, placement: CGRect?) {
+        let controller = ScreenshotEditorController(image: image, placement: placement) { [weak self] in
             self?.editorController = nil
         }
         editorController = controller
@@ -110,7 +131,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     private let onClose: () -> Void
     private var keyMonitor: Any?
 
-    init(image: CGImage, onClose: @escaping () -> Void) {
+    init(image: CGImage, placement: CGRect? = nil, onClose: @escaping () -> Void) {
         self.model = EditorModel(image: image)
         self.onClose = onClose
         self.window = EditorWindow(
@@ -134,13 +155,39 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         window.contentViewController = NSHostingController(rootView: view)
 
         let screen = NSScreen.main ?? NSScreen.screens[0]
-        let maxWidth = screen.visibleFrame.width * 0.8
-        let maxHeight = screen.visibleFrame.height * 0.8
-        let scale = min(1, min(maxWidth / CGFloat(image.width), maxHeight / CGFloat(image.height)))
-        let width = max(640, CGFloat(image.width) * scale + 20)
-        let height = max(360, CGFloat(image.height) * scale + 72)
-        window.setContentSize(NSSize(width: width, height: height))
-        window.center()
+        let scale = max(1, screen.backingScaleFactor)
+        let visible = screen.visibleFrame
+
+        var pointSize = CGSize(
+            width: CGFloat(image.width) / scale,
+            height: CGFloat(image.height) / scale
+        )
+        let fit = min(
+            1,
+            visible.width * 0.9 / max(1, pointSize.width + 20),
+            visible.height * 0.9 / max(1, pointSize.height + 61)
+        )
+        pointSize = CGSize(width: pointSize.width * fit, height: pointSize.height * fit)
+
+        let contentWidth = max(640, pointSize.width + 20)
+        let contentHeight = max(240, pointSize.height + 61)
+
+        let frame: NSRect
+        if let placement {
+            // Appear exactly where the region was, with the bar hanging below.
+            let x = min(max(visible.minX, placement.minX - 10), visible.maxX - contentWidth)
+            let top = min(visible.maxY, placement.maxY + 8)
+            let y = max(visible.minY, top - contentHeight)
+            frame = NSRect(x: x, y: y, width: contentWidth, height: contentHeight)
+        } else {
+            frame = NSRect(
+                x: visible.midX - contentWidth / 2,
+                y: visible.midY - contentHeight / 2,
+                width: contentWidth,
+                height: contentHeight
+            )
+        }
+        window.setFrame(frame, display: false)
 
         installKeyMonitor()
     }
