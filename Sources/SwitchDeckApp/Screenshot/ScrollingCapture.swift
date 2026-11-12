@@ -4,12 +4,23 @@ import AppKit
 /// moved between frames and appends the new rows.
 @MainActor
 final class ScrollingCapture {
+    private struct FixedEdges {
+        var top = 0, bottom = 0, left = 0, right = 0
+
+        func contentRect(in image: CGImage) -> CGRect {
+            CGRect(x: left, y: top, width: image.width - left - right, height: image.height - top - bottom)
+        }
+
+        var isEmpty: Bool { top + bottom + left + right == 0 }
+    }
     private let region: CGRect
     private let capture: () async -> CGImage?
     private let sampleWidth = 320
 
     private var slices: [CGImage] = []
     private var previousFrame: CGImage?
+    private var firstFrame: CGImage?
+    private var fixedEdges: FixedEdges?
     private var timer: Timer?
     private var idleTicks = 0
     private var busy = false
@@ -91,12 +102,17 @@ final class ScrollingCapture {
         guard let previous = previousFrame else {
             slices = [frame]
             totalHeight = frame.height
+            firstFrame = frame
             previousFrame = frame
             onUpdate?()
             return
         }
 
-        guard let fullShift = pixelShift(from: previous, to: frame) else {
+        let edges = fixedEdges ?? detectFixedEdges(previous: previous, current: frame)
+        let contentRect = edges.contentRect(in: frame)
+        guard let previousContent = previous.cropping(to: contentRect),
+              let currentContent = frame.cropping(to: contentRect),
+              let fullShift = pixelShift(from: previousContent, to: currentContent) else {
             unmatchedFrames += 1
             log("unmatched=\(unmatchedFrames)")
             if unmatchedFrames >= 3 { onNeedsOverlap?() }
@@ -116,15 +132,22 @@ final class ScrollingCapture {
 
         idleTicks = 0
         log("full=\(fullShift) of \(frame.height)")
-        guard fullShift > 0, fullShift < frame.height - 4 else { return }
+        guard fullShift > 0, fullShift < currentContent.height - 4 else { return }
+
+        if fixedEdges == nil, let firstFrame,
+           let initialContent = firstFrame.cropping(to: contentRect) {
+            fixedEdges = edges
+            slices = [initialContent]
+            log("fixed top=\(edges.top) bottom=\(edges.bottom) left=\(edges.left) right=\(edges.right)")
+        }
 
         let cropRect = CGRect(
             x: 0,
-            y: frame.height - fullShift,
-            width: frame.width,
+            y: currentContent.height - fullShift,
+            width: currentContent.width,
             height: fullShift
         )
-        guard let slice = frame.cropping(to: cropRect) else { return }
+        guard let slice = currentContent.cropping(to: cropRect) else { return }
 
         slices.append(slice)
         previousFrame = frame
@@ -165,6 +188,67 @@ final class ScrollingCapture {
             context.draw(slice, in: CGRect(x: 0, y: y, width: slice.width, height: slice.height))
         }
 
+        guard let content = context.makeImage() else { return nil }
+        guard let firstFrame, let edges = fixedEdges, !edges.isEmpty else { return content }
+        return composeFixedEdges(content: content, first: firstFrame, last: previousFrame ?? firstFrame, edges: edges)
+    }
+
+    /// Edge strips that did not move are excluded from alignment. Lock these
+    /// only after a confident content match, not merely because a page paused.
+    private func detectFixedEdges(previous: CGImage, current: CGImage) -> FixedEdges {
+        guard previous.width == current.width, previous.height == current.height else { return FixedEdges() }
+        let a = grayscale(previous, nativeRows: true), b = grayscale(current, nativeRows: true)
+        let width = a.1, height = a.2
+        func rowIsFixed(_ y: Int) -> Bool {
+            var total = 0
+            for x in 0..<width { total += abs(Int(a.0[y * width + x]) - Int(b.0[y * width + x])) }
+            return Double(total) / Double(width) < 0.75
+        }
+        func columnIsFixed(_ x: Int) -> Bool {
+            var total = 0, count = 0
+            for y in stride(from: 0, to: height, by: max(1, height / 256)) {
+                total += abs(Int(a.0[y * width + x]) - Int(b.0[y * width + x])); count += 1
+            }
+            return Double(total) / Double(max(1, count)) < 0.75
+        }
+        var result = FixedEdges()
+        while result.top < height / 3, rowIsFixed(result.top) { result.top += 1 }
+        while result.bottom < height / 3, rowIsFixed(height - result.bottom - 1) { result.bottom += 1 }
+        var left = 0, right = 0
+        while left < width / 3, columnIsFixed(left) { left += 1 }
+        while right < width / 3, columnIsFixed(width - right - 1) { right += 1 }
+        result.left = Int((Double(left) * Double(current.width) / Double(width)).rounded(.up))
+        result.right = Int((Double(right) * Double(current.width) / Double(width)).rounded(.up))
+        // Very small strips are usually antialiasing or a screen border.
+        if result.top < 4 { result.top = 0 }
+        if result.bottom < 4 { result.bottom = 0 }
+        if result.left < 4 { result.left = 0 }
+        if result.right < 4 { result.right = 0 }
+        return result
+    }
+
+    /// Keep header/footer once. Sidebars keep their initial content once and
+    /// extend their background, rather than repeating or stretching controls.
+    private func composeFixedEdges(content: CGImage, first: CGImage, last: CGImage, edges: FixedEdges) -> CGImage? {
+        let height = content.height + edges.top + edges.bottom
+        guard let context = CGContext(data: nil, width: first.width, height: height,
+            bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        let initialHeight = first.height - edges.top - edges.bottom
+        let rep = NSBitmapImageRep(cgImage: first)
+        func draw(_ image: CGImage, crop: CGRect, x: Int, top: Int) {
+            guard crop.width > 0, crop.height > 0, let strip = image.cropping(to: crop) else { return }
+            context.draw(strip, in: CGRect(x: x, y: height - top - strip.height, width: strip.width, height: strip.height))
+        }
+        for (x, width) in [(0, edges.left), (first.width - edges.right, edges.right)] where width > 0 {
+            let color = rep.colorAt(x: min(first.width - 1, x + width / 2), y: first.height - edges.bottom - 1) ?? .windowBackgroundColor
+            context.setFillColor(color.cgColor)
+            context.fill(CGRect(x: x, y: edges.bottom, width: width, height: content.height))
+            draw(first, crop: CGRect(x: x, y: edges.top, width: width, height: initialHeight), x: x, top: edges.top)
+        }
+        context.draw(content, in: CGRect(x: edges.left, y: edges.bottom, width: content.width, height: content.height))
+        draw(first, crop: CGRect(x: 0, y: 0, width: first.width, height: edges.top), x: 0, top: 0)
+        draw(last, crop: CGRect(x: 0, y: last.height - edges.bottom, width: last.width, height: edges.bottom), x: 0, top: height - edges.bottom)
         return context.makeImage()
     }
 
