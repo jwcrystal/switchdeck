@@ -25,7 +25,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Empty Trash | Finder AppleScript, top-level item count |
 | Empty Pasteboard | `NSPasteboard` |
 | Recording | `AVAudioRecorder` to the folder chosen in Settings › Recording, with a microphone picker |
-| Screenshot | ScreenCaptureKit; in-place editor over the selection (rect, ellipse, line, arrow styles, pen, highlighter, text, number, mosaic, blur); timed capture, HEX/RGB/HSL readout, PNG/JPEG/HEIC save; copy/save/pin; scrolling capture paused |
+| Screenshot | ScreenCaptureKit; region, single-window, multi-window and full-screen capture; in-place editor over the selection (rect, ellipse, line, arrow styles, pen, highlighter, text, number, mosaic, blur); timed capture, HEX/RGB/HSL readout, PNG/JPEG/HEIC save; copy/save/pin; scrolling capture paused |
 | Quit All Apps | `NSRunningApplication.terminate()` |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, all removable volumes |
 

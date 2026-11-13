@@ -162,15 +162,17 @@ final class ScreenshotCoordinator {
         }
     }
 
-    /// Debug: compares a normal capture with one that excludes SwitchDeck while
+    /// Debug: compares a normal capture with one that excludes capture UI while
     /// the overlay is up, to prove the overlay is not baked into the image.
     func compareCaptures() {
         let screen = NSScreen.main ?? NSScreen.screens[0]
         guard let displayID = Self.displayID(for: screen) else { return }
 
         Task {
-            let plain = try? await capture.captureDisplay(displayID: displayID, excludingOwnApp: false)
-            let excluded = try? await capture.captureDisplay(displayID: displayID, excludingOwnApp: true)
+            let plain = try? await capture.captureDisplay(displayID: displayID)
+            let excluded = try? await capture.captureDisplay(
+                displayID: displayID, excludingWindowIDs: SelectionController.overlayWindowIDs
+            )
 
             for (name, image) in [("plain", plain), ("excluded", excluded)] {
                 guard let image else { continue }
@@ -219,6 +221,9 @@ final class ScreenshotCoordinator {
             captureBase: { [weak self] rect, screen in
                 await self?.captureRegion(rect, screen)
             },
+            captureWindows: { [weak self] targets, canvas, screen in
+                await self?.captureWindows(targets, canvas: canvas, screen: screen)
+            },
             initialSelection: initialSelection,
             frozen: { [weak self] screen in
                 guard let self, let id = Self.displayID(for: screen) else { return nil }
@@ -232,7 +237,9 @@ final class ScreenshotCoordinator {
         var frames: [CGDirectDisplayID: CGImage] = [:]
         for screen in NSScreen.screens {
             guard let id = Self.displayID(for: screen),
-                  let image = try? await capture.captureDisplay(displayID: id, excludingOwnApp: true)
+                  let image = try? await capture.captureDisplay(
+                    displayID: id, excludingWindowIDs: SelectionController.overlayWindowIDs
+                  )
             else { continue }
             frames[id] = image
         }
@@ -250,7 +257,31 @@ final class ScreenshotCoordinator {
             displayID: displayID,
             rect: rect,
             screenFrame: screen.frame,
-            excludingOwnApp: true
+            excludingWindowIDs: SelectionController.overlayWindowIDs
+        )
+    }
+
+    /// Captures each picked window on its own, then lays them out at their
+    /// on-screen positions. If any picked window vanishes, keep the selection
+    /// failed rather than silently dropping a window or capturing the desktop.
+    private func captureWindows(
+        _ targets: [CaptureWindowTarget],
+        canvas: CGRect,
+        screen: NSScreen
+    ) async -> CGImage? {
+        guard !targets.isEmpty else { return nil }
+
+        var shots: [(image: CGImage, rect: CGRect)] = []
+        for target in targets {
+            guard let image = try? await capture.captureWindow(windowID: target.id) else { return nil }
+            shots.append((image, target.rect))
+        }
+        guard !shots.isEmpty else { return nil }
+
+        return WindowComposer.compose(
+            shots: shots,
+            canvas: canvas,
+            scale: screen.backingScaleFactor
         )
     }
 

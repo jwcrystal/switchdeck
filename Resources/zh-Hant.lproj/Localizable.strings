@@ -157,7 +157,9 @@
 "%d%%" = "%d%%";
 "Repository" = "原始碼";
 "Report an Issue" = "回報問題";
-"Drag to select · click a window · F for the whole screen · R for last region" = "拖曳選取 · 點視窗 · F 選整個螢幕 · R 用上次的區域";
+"Drag to select · click a window · ⇧ click adds one · F full screen · R last region" = "拖曳選取 · 點選視窗 · ⇧ 點選加入視窗 · F 全螢幕 · R 上次區域";
+"%d windows · Return to edit · Esc clears" = "%d 個視窗 · Return 編輯 · Esc 清除";
+"The selected window could not be captured. Press Esc to try again." = "無法擷取選定的視窗，請按 Esc 後重新選取。";
 "Enter or drag to edit · R reuses the last region · Esc cancels" = "Enter 或拖曳開始編輯 · R 沿用上次的區域 · Esc 取消";
 "C Copy colour · ⌥ HEX / RGB / HSL" = "C 複製色值 · ⌥ HEX / RGB / HSL";
 "No screenshot frame was captured. Please try again." = "沒有取得截圖畫面，請再試一次。";
