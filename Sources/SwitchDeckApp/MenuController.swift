@@ -208,7 +208,7 @@ final class MenuController: NSObject, NSMenuDelegate {
 
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "SwitchDeck"
+        alert.messageText = t("SwitchDeck")
         var text = error.localizedDescription
         if let hint = (error as? SwitchDeckError)?.recoveryHint {
             text += "\n\n" + hint

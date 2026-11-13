@@ -59,5 +59,23 @@ for path in files:
             print(f"    {k!r}")
     failed = failed or bool(missing or bad)
 
+# Unwrapped AppKit text is invisible to every other check: the key exists, the
+# translation is correct, and the view still shows English because the literal
+# never went through t(). This is how the menu extras shipped untranslated.
+unwrapped = []
+appkit = re.compile(
+    r'(?:NSMenuItem\(title:|addButton\(withTitle:|labelWithString:|NSButton\(title:|messageText\s*=)\s*"[^"]'
+)
+for path in sorted(pathlib.Path("Sources").rglob("*.swift")):
+    for number, line in enumerate(path.read_text().splitlines(), 1):
+        if appkit.search(line) and "t(" not in line:
+            unwrapped.append(f"{path.name}:{number} {line.strip()[:80]}")
+
+if unwrapped:
+    print(f"\n{len(unwrapped)} user-facing AppKit strings never reach t():")
+    for item in unwrapped:
+        print(f"  {item}")
+    failed = True
+
 sys.exit(1 if failed else 0)
 PY
