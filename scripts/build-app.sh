@@ -36,7 +36,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleExecutable</key>
     <string>SwitchDeck</string>
     <key>CFBundleIdentifier</key>
-    <string>studio.anyfun.switchdeck</string>
+    <string>io.github.jwcrystal.switchdeck</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
