@@ -55,7 +55,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Night Shift | Private `CBBlueLightClient` | Private `CBBlueLightClient` | Private APIs |
 | Trash | Finder AppleScript + count | AppleScript + count | Empties only, no count |
 | Extensibility | Edit Swift sources | Closed | Modular; schedules, Shortcuts, remote |
-| Localisation | English + Traditional Chinese READMEs; app UI in English | 12+ languages | 20+ languages |
+| Localisation | English + Traditional Chinese, READMEs and UI | 12+ languages | 20+ languages |
 | Maintained | By whoever builds it | No release since Sep 2023 | Active |
 | Tests / CLI diagnostics | 104 tests, CLI debug modes | None known | Tests for some modules |
 | Licence | No LICENSE file yet | Proprietary | MIT |
@@ -68,7 +68,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 
 ## Where SwitchDeck loses
 
-- No app localisation, no auto-update, no Developer ID signature, no App Store distribution.
+- Two languages only, no auto-update, no Developer ID signature, no App Store distribution.
 - Far fewer switches: no Do Not Disturb / Focus, Screen Saver, Resolution, Low Power Mode, Bluetooth, AirPods, radio, music controls.
 - None of OnlySwitch's scheduling, widgets, iPhone remote, or Shortcuts import.
 

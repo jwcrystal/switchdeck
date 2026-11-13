@@ -6,7 +6,7 @@ macOS 選單列小工具：16 個一鍵系統開關，加上一個內建的截�
 
 <p align="center"><img src="docs/images/menu.png" width="360" alt="SwitchDeck 選單：每個開關附即時狀態，下方是權限、設定與結束"></p>
 
-**狀態：pre-1.0（0.7.2）。** 開關與選單已定案；截圖編輯器可用於區域、視窗與全螢幕擷取，滾動截圖暫停（見下）。預期會有粗糙邊角與直接變動的 API。
+**狀態：pre-1.0（0.7.2）。** 開關與選單已定案；介面有英文與繁體中文；截圖編輯器可用於區域、視窗與全螢幕擷取，滾動截圖暫停（見下）。預期會有粗糙邊角與直接變動的 API。
 
 ## 需求
 
@@ -134,6 +134,10 @@ SwitchDeck 以現在的形式無法上 Mac App Store，也沒有試：
 - 私有 API 可能在任一次 macOS 更新後壞掉；壞掉的開關會退化成一句說明而不是 crash，但這個 repo 不承諾別的。
 
 目前只以原始碼形式散布：自己建置，或自己用 Developer ID 簽章並 notarize 後再交給別人。
+
+## 多語系
+
+介面提供英文與繁體中文（台灣）。原始碼裡的英文字面就是 key，翻譯放在 `Resources/zh-Hant.lproj/Localizable.strings`，`scripts/build-app.sh` 會把每個 `.lproj` 複製進 bundle。`./scripts/check-localizations.sh` 會在 `t()` 的 key 沒有條目、或翻譯漏掉 `%@`／`%d` 佔位符時失敗。沒有對應語言檔就顯示英文。
 
 ## 類似專案
 

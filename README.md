@@ -6,7 +6,7 @@ A macOS menu-bar app with sixteen one-click system switches and a built-in scree
 
 <p align="center"><img src="docs/images/menu.png" width="360" alt="The SwitchDeck menu: switch rows with their live state, then Permissions, Settings and Quit"></p>
 
-**Status: pre-1.0 (0.7.2).** The switches and the menu are settled; the screenshot editor works for region, window and full-screen capture, and its scrolling capture is paused (see below). Expect rough edges and direct API changes.
+**Status: pre-1.0 (0.7.2).** The switches and the menu are settled; the interface is in English and Traditional Chinese; the screenshot editor works for region, window and full-screen capture, and its scrolling capture is paused (see below). Expect rough edges and direct API changes.
 
 ## Requirements
 
@@ -134,6 +134,10 @@ SwitchDeck cannot ship on the Mac App Store in this form, and does not try to:
 - Private APIs can break on any macOS update; a failing switch degrades to an explanation rather than a crash, but no release here promises otherwise.
 
 Distribution is source-only for now: build it yourself, or notarize your own Developer ID build if you want to hand it to someone else.
+
+## Localisation
+
+The interface ships in English and Traditional Chinese (Taiwan). English wording in the source doubles as the key; `Resources/zh-Hant.lproj/Localizable.strings` holds the translations, and `scripts/build-app.sh` copies every `.lproj` into the bundle. `./scripts/check-localizations.sh` fails when a `t()` key has no entry or a translation drops a `%@`/`%d` placeholder. A language with no file simply shows English.
 
 ## Similar projects
 
