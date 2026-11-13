@@ -1,0 +1,48 @@
+name: Release
+
+# Tagging publishes. The steps are deliberately the same ones a person runs
+# locally: test, build the .app, then zip it with ditto so the code signature
+# and extended attributes survive (upload-artifact and Finder's Archive Utility
+# can break both, which turns "unnotarized" into "damaged").
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: swift --version
+
+      - name: Test
+        run: swift test
+
+      - name: Build the app
+        run: ./scripts/build-app.sh
+
+      - name: Package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          cd build
+          ditto -c -k --keepParent --sequesterRsrc SwitchDeck.app "SwitchDeck-${version}.zip"
+          shasum -a 256 "SwitchDeck-${version}.zip" > "SwitchDeck-${version}.zip.sha256"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          notes="docs/releases/${version}.md"
+          assets="build/SwitchDeck-${version}.zip build/SwitchDeck-${version}.zip.sha256"
+          if [ -f "$notes" ]; then
+            gh release create "$GITHUB_REF_NAME" --title "$version" --notes-file "$notes" $assets
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$version" --generate-notes $assets
+          fi
