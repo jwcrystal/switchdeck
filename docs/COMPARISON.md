@@ -1,6 +1,6 @@
 # SwitchDeck vs AnySwitch vs OnlySwitch
 
-A factual comparison of SwitchDeck against the two apps it borrows its shape from.
+A factual side-by-side of SwitchDeck, AnySwitch and OnlySwitch, as of November 2026. No code is shared between the three.
 Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 
 - **SwitchDeck** — this repository. A locally built, unsigned-for-distribution menu-bar app with 16 switches.

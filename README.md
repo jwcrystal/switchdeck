@@ -1,23 +1,28 @@
 # SwitchDeck
 
-A local reimplementation of the menu-bar switches in [AnySwitch](https://apps.apple.com/us/app/anyswitch-powerful-switches/id6444313776), built for this Mac without the App Store sandbox.
+A macOS menu-bar app with sixteen one-click system switches and a built-in screenshot editor. Native Swift on AppKit and SwiftUI, built from source with SwiftPM, no third-party dependencies, no App Store sandbox.
 
-Where AnySwitch ships ~20 AppleScript files and a sandbox, SwitchDeck talks to the system directly: `ProcessInfo` power assertions, `NSWorkspace`, `NSPasteboard`, `defaults`, and (only when there is no public API) System Events.
+**Status: pre-1.0 (0.7.2).** The switches and the menu are settled; the screenshot editor works for region, window and full-screen capture, and its scrolling capture is paused (see below). Expect rough edges and direct API changes.
 
-## First launch
+## Requirements
 
-SwitchDeck shows a **Set up SwitchDeck** window when a permission is missing. That window is the only place the app triggers a macOS permission dialog:
+- macOS 14 or later
+- Xcode command line tools (`swift --version` should report 5.9 or later)
 
-- **Accessibility** — Lock Keyboard and Screen Clean.
-- **Automation — System Events** — Dark Mode.
-- **Automation — Finder** — Empty Trash and its item count.
-- **Microphone** — Recording.
+## Build and run
 
-Grant there once and the menu never prompts again; using a switch with a missing permission just explains what is off. Reopen the window from the menu's **Permissions…** item or Settings › General.
+```bash
+git clone <this repository> switchdeck && cd switchdeck
+swift test                      # 84 tests, no UI needed
+./scripts/build-app.sh          # builds build/SwitchDeck.app
+open build/SwitchDeck.app
+```
 
-## Status
+`./scripts/setup-signing.sh` is optional but worth running once per machine: it creates a locally trusted, self-signed `SwitchDeck Local Signing` certificate, which `build-app.sh` then signs with. Without it, every rebuild changes the ad-hoc CDHash and macOS treats the app as new, so Accessibility and Automation grants are asked for again.
 
-Milestones M1–M4 are done: sixteen switches, the menu-bar UI, global shortcuts with an inline recorder, a setup window for permissions, an app icon, and a stable local signature.
+Launch at login needs the app in `/Applications`; until then the toggle in Settings › General reports the system error.
+
+## Switches
 
 | Switch | How it works | Note |
 |---|---|---|
@@ -38,49 +43,36 @@ Milestones M1–M4 are done: sixteen switches, the menu-bar UI, global shortcuts
 | Quit All Apps | `NSRunningApplication.terminate()`, skips Finder and SwitchDeck | Unsaved work still prompts |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, counts removable volumes | |
 
-Settings › Customize reorders and hides switches; the choice is stored in
-`~/Library/Application Support/SwitchDeck/config.json`. Rows are dragged into place; a context menu offers Move Up / Move Down / Show in Menu for keyboard use.
+Settings › Customize reorders and hides switches; the choice is stored in `~/Library/Application Support/SwitchDeck/config.json`. Rows are dragged into place; a context menu offers Move Up / Move Down / Show in Menu for keyboard use.
 
-## Screenshot
+## Screenshot editor
 
 - `⌥E` starts a capture (installed once as a default; change it in Settings › Shortcuts).
 - Dragging a region enters editing **in place**: the selection stays on screen, everything outside dims, and the toolbar appears under the region — no second window. Clicking a window edits at that window's frame; `F` selects the whole screen; `R` restores the last region.
-- The default tool is Select. With a tool active, dragging inside draws:
-  -  rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (S/M/L, optional bubble), numbered markers, mosaic and blur.
+- The default tool is Select. With a tool active, dragging inside draws: rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (S/M/L, optional bubble), numbered markers, mosaic and blur.
 - The region keeps its eight handles while editing, so it can still be resized; while dragging, the live screen shows through and the frozen image is refreshed on release.
 - While selecting, the colour under the pointer is shown with its value and pixel coordinates; `⌥` cycles HEX / RGB / HSL, and `C` copies the value, leaves capture mode and shows a short "Copied …" toast. The readout is hidden once editing starts.
 - The region is frozen the moment editing starts, so mosaic and blur preview exactly what gets saved.
-- Main tools stay on one row. Selecting a drawing tool reveals a compact horizontal icon row immediately below it: color, arrow paths (including an S curve), outline/hatched/solid shapes, solid/dashed/dotted strokes, marker shape, text sizes/bubble and sliders for stroke width, pixel-effect strength or highlighter opacity. Clicking the active tool returns to Select and closes the options row.
+- Main tools stay on one row. Selecting a drawing tool reveals a compact horizontal icon row immediately below it: colour, arrow paths (including an S curve), outline/hatched/solid shapes, solid/dashed/dotted strokes, marker shape, text sizes/bubble and sliders for stroke width, pixel-effect strength or highlighter opacity. Clicking the active tool returns to Select and closes the options row.
 - With Select, clicking an existing mark edits that object instead of the next one: the options row shows its own colour, stroke, fill, arrow path, text size/bubble or marker shape, changes apply live, and the same values become the default for new marks. Dragging and the eight handles still move or resize it.
 - The signature button adds a watermark (the macOS full user name); its popover edits the text, colour, position (four corners, centre or a tiled pattern), size (S/M/L), angle (0/30/45°) and opacity. It is clipped to the capture, so a rotated or tiled watermark never spills outside the selection. The eye-slash button hides it from the image but keeps the text in the PNG metadata.
-- Scrolling capture is paused in this build: the toolbar shows no vertical/horizontal entry, the capture callback and debug route refuse to start it, and the stitching engine stays in the source but cannot be reached from the app. Normal region, window and full-screen capture, annotation, copy, save and pin are unaffected.
-- `Enter` copies, `Space` saves a PNG straight into ~/Downloads as `SwitchDeck Screenshot <date>.png` (folder and prefix are the UserDefaults keys that Settings will expose), `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo edits, `Esc` closes.
+- **Scrolling capture is paused in this build**: the toolbar shows no vertical/horizontal entry, the capture callback and debug route refuse to start it, and the stitching engine stays in the source but cannot be reached from the app. Normal region, window and full-screen capture, annotation, copy, save and pin are unaffected.
+- `Enter` copies, `Space` saves a PNG straight into `~/Downloads` as `SwitchDeck Screenshot <date>.png` (folder and prefix are the UserDefaults keys that Settings will expose), `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo edits, `Esc` closes.
 - Pinned images: the corner × or `Esc` closes, scroll resizes, `⌘`-scroll changes opacity, right-click has Copy / 50% Opacity / Close.
 
-## Global shortcuts (M2)
+## Permissions
 
-Settings › Shortcuts records one shortcut per switch:
+macOS TCC cannot be pre-granted. SwitchDeck shows a **Set up SwitchDeck** window when a permission is missing, and that window is the only place the app triggers a permission dialog:
 
-- Click **Record Shortcut**, press a combination. Esc cancels, Delete clears.
-- A shortcut needs ⌘, ⌥ or ⌃; otherwise it could swallow ordinary typing.
-- Recording uses a local event monitor, so it never asks for Accessibility.
-- Registration uses Carbon `RegisterEventHotKey`, which also reports a shortcut another app already owns.
-- Duplicates inside SwitchDeck and registration failures show up as red lines at the bottom of the pane.
-- The menu shows the shortcut in the grey column, next to the live state.
-- Hidden switches keep their shortcut in the config but do not register it.
+- **Automation — System Events** — Dark Mode.
+- **Automation — Finder** — Empty Trash and its item count.
+- **Accessibility** — Lock Keyboard and Screen Clean.
+- **Microphone** — Recording.
+- **Screen Recording** — Screenshot; macOS applies the grant after a relaunch.
 
-## Build and run
+Grant there once and the menu never prompts again; using a switch with a missing permission just explains what is off. Reopen the window from the menu's **Permissions…** item or Settings › General. Accessibility and Automation status is also listed in Settings › General.
 
-```bash
-cd ~/dev/switchdeck
-swift test                      # 84 tests, no UI needed
-./scripts/build-app.sh          # builds build/SwitchDeck.app
-open build/SwitchDeck.app
-```
-
-The app is an `LSUIElement` accessory: it lives only in the menu bar. Quit it from its own menu.
-
-Handy command-line checks that use the same switch code:
+## Development
 
 ```bash
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump          # every switch + live state
@@ -91,12 +83,10 @@ build/SwitchDeck.app/Contents/MacOS/SwitchDeck --menu          # the menu as it 
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --capture-test  # capture the main display, report the result
 ```
 
-## Layout
-
 ```
 Sources/SwitchKit/             # no AppKit UI, unit-testable
   SwitchItem.swift             # one menu row: title, icon, state, action, submenu
-  SwitchCatalog.swift          # built-in switches in original-app order
+  SwitchCatalog.swift          # the built-in switches
   Config.swift                 # order, visibility and shortcuts, JSON persistence
   HotkeyBinding.swift          # key + Carbon modifiers + key-cap label
   Shell.swift / Automation.swift
@@ -106,38 +96,38 @@ Sources/SwitchDeckApp/         # AppKit shell
   HotkeyCenter.swift           # Carbon registration, conflict reporting
   HotkeyRecorder.swift         # NSEvent -> binding, local capture monitor
   SettingsView.swift           # SwiftUI settings
-Tests/SwitchKitTests/
-scripts/build-app.sh           # SPM binary -> .app with Info.plist + ad-hoc signature
+  Screenshot/                  # capture, in-place editor, annotations, scrolling engine
+Tests/SwitchKitTests/          # switches, config, hotkeys, Trash counting
+Tests/ScreenshotTests/         # annotation history, styles, scrolling and stitching maths
+scripts/build-app.sh           # SPM binary -> .app with Info.plist + local signature
 ```
 
-## Permissions
-
-macOS TCC cannot be pre-granted. The first time a switch needs something, macOS asks:
-
-- **Automation** — Dark Mode (System Events) and Empty Trash (Finder). Also listed in Settings › General.
-- **Accessibility** — Lock Keyboard and Screen Clean. The first attempt shows the macOS prompt; the switch then explains how to grant it.
-- **Microphone** — Recording. macOS asks the first time you start one.
-- **Screen Recording** — Screenshot. macOS applies the grant after a relaunch.
-
-### Why rebuilds used to lose permissions
-
-An ad-hoc signature identifies the app by its CDHash, which changes on every build, so macOS treated each rebuild as a brand new app and asked again. `scripts/setup-signing.sh` (run once per machine) creates a locally trusted, self-signed `SwitchDeck Local Signing` certificate, and `scripts/build-app.sh` signs with it automatically. The designated requirement then stays
+The designated requirement the signature keeps stable across rebuilds is:
 
 ```
-identifier "studio.anyfun.switchdeck" and certificate leaf = H"…"
+identifier "io.github.jwcrystal.switchdeck" and certificate leaf = H"…"
 ```
 
-across rebuilds, so Accessibility and Automation grants survive. Verify with `codesign -d -r- build/SwitchDeck.app`.
+Verify with `codesign -d -r- build/SwitchDeck.app`.
 
-The build is signed with a local self-signed identity (see Permissions below). Launch at login needs the app in `/Applications`; until then the toggle in General reports the system error.
+`docs/internal/` holds the working notes written while building the screenshot editor. They are kept for traceability, not as documentation — some reference plan files that were never committed.
 
-## Roadmap
+## Not on the App Store
 
-- **M1–M3 — done** — menu, switches, settings, global shortcuts, the hard system integrations.
-- **M4 — done** — setup window and permission status, app icon, stable local signing, About pane.
-- **Screenshot follow-ups** — OCR, additional export formats and drag-out to Finder. Scrolling capture stays paused until its stitching problems are fixed.
-- **Later** — live menu updates while recording, localisation.
+SwitchDeck cannot ship on the Mac App Store in this form, and does not try to:
 
-## Why not copy AnySwitch's scripts
+- It uses private APIs (`SACLockScreenImmediate`, `CBBlueLightClient`), which App Review rejects outright.
+- It is not sandboxed and drives Finder and System Events through Apple Events.
+- Lock Keyboard is a `CGEventTap` that swallows every key event.
+- It has no App Store identifier, no entitlement set and no team signing.
+- Private APIs can break on any macOS update; a failing switch degrades to an explanation rather than a crash, but no release here promises otherwise.
 
-AnySwitch is App Store sandboxed, so it does everything through precompiled AppleScripts. Those scripts are its code, and they solve sandbox problems this app does not have. SwitchDeck implements the behaviour natively; only the menu layout follows the original.
+Distribution is source-only for now: build it yourself, or notarize your own Developer ID build if you want to hand it to someone else.
+
+## Similar projects
+
+[AnySwitch](https://apps.apple.com/us/app/anyswitch-powerful-switches/id6444313776) (anyfun.studio, Mac App Store) and [OnlySwitch](https://github.com/jacklandrin/OnlySwitch) (MIT) cover much of the same ground; OnlySwitch is the broader and more mature one. No code is shared with either. `docs/COMPARISON.md` has a factual side-by-side, written as a snapshot in November 2026.
+
+## License
+
+[MIT](LICENSE). Copyright © 2026 Jared Wang.
