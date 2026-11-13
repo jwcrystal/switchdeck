@@ -164,7 +164,7 @@ final class ScreenCaptureService {
     ///
     /// `rect` is in global screen coordinates (bottom-left origin); the image is
     /// top-left origin, so the vertical flip happens here.
-    func crop(image: CGImage, to rect: CGRect, screenFrame: CGRect) -> CGImage? {
+    static func crop(image: CGImage, to rect: CGRect, screenFrame: CGRect) -> CGImage? {
         let scale = CGFloat(image.width) / screenFrame.width
         let localX = (rect.minX - screenFrame.minX) * scale
         let localY = (screenFrame.maxY - rect.maxY) * scale

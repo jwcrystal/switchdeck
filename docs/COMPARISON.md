@@ -24,8 +24,8 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Stage Manager / Autohide | `com.apple.WindowManager` + window-manager restart |
 | Empty Trash | Finder AppleScript, top-level item count |
 | Empty Pasteboard | `NSPasteboard` |
-| Recording | `AVAudioRecorder` to `~/Music/SwitchDeck` |
-| Screenshot | ScreenCaptureKit; in-place editor over the selection (rect, ellipse, line, arrow styles, pen, highlighter, text, number, mosaic, blur); copy/save/pin; scrolling capture paused |
+| Recording | `AVAudioRecorder` to the folder chosen in Settings › Recording, with a microphone picker |
+| Screenshot | ScreenCaptureKit; in-place editor over the selection (rect, ellipse, line, arrow styles, pen, highlighter, text, number, mosaic, blur); timed capture, HEX/RGB/HSL readout, PNG/JPEG/HEIC save; copy/save/pin; scrolling capture paused |
 | Quit All Apps | `NSRunningApplication.terminate()` |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, all removable volumes |
 
@@ -33,12 +33,12 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 
 - Native `NSMenu` list with a right-aligned grey status column, submenus, checkmarks.
 - Global shortcuts: Carbon `RegisterEventHotKey`, inline recorder, in-app and system conflict reporting, shortcut shown in the menu.
-- Sidebar settings: General, Customize, Shortcuts, About.
+- Sidebar settings: General, Customize, Screenshot, Recording, Shortcuts, About.
 - Customize: drag to reorder, toggle to hide, context-menu fallback.
 - One-time Setup window for Accessibility, System Events, Finder and Microphone, with live status and per-permission "Grant" / "Settings" actions.
 - Single-instance lock, ad-hoc-free local signing identity that keeps TCC grants across rebuilds.
 - Diagnostics: `--dump`, `--run <id>`, `--menu`, `--hotkeys`, `--permissions`, `--probe-automation`.
-- 84 unit tests: SwitchKit config, ordering, hotkeys and Trash counting, plus screenshot editing, annotation history and scrolling-engine maths.
+- 103 unit tests: SwitchKit config, ordering, hotkeys and Trash counting, plus screenshot editing, annotation history, capture cropping and scrolling-engine maths.
 
 ## Comparison
 
@@ -55,9 +55,9 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Night Shift | Private `CBBlueLightClient` | Private `CBBlueLightClient` | Private APIs |
 | Trash | Finder AppleScript + count | AppleScript + count | Empties only, no count |
 | Extensibility | Edit Swift sources | Closed | Modular; schedules, Shortcuts, remote |
-| Localisation | English only | 12+ languages | 20+ languages |
+| Localisation | English + Traditional Chinese READMEs; app UI in English | 12+ languages | 20+ languages |
 | Maintained | By whoever builds it | No release since Sep 2023 | Active |
-| Tests / CLI diagnostics | 84 tests, 6 debug modes | None known | Tests for some modules |
+| Tests / CLI diagnostics | 103 tests, CLI debug modes | None known | Tests for some modules |
 | Licence | No LICENSE file yet | Proprietary | MIT |
 
 ## Where SwitchDeck wins
@@ -68,7 +68,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 
 ## Where SwitchDeck loses
 
-- No localisation, no auto-update, no Developer ID signature, no App Store distribution.
+- No app localisation, no auto-update, no Developer ID signature, no App Store distribution.
 - Far fewer switches: no Do Not Disturb / Focus, Screen Saver, Resolution, Low Power Mode, Bluetooth, AirPods, radio, music controls.
 - None of OnlySwitch's scheduling, widgets, iPhone remote, or Shortcuts import.
 

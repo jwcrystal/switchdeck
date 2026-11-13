@@ -18,7 +18,8 @@ final class SelectionController {
         onCapture: @escaping (CapturePayload, CaptureSession.Output) -> Void,
         onCancel: @escaping () -> Void,
         captureBase: @escaping (CGRect, NSScreen) async -> CGImage?,
-        initialSelection: CGRect? = nil
+        initialSelection: CGRect? = nil,
+        frozen: @escaping (NSScreen) -> CGImage? = { _ in nil }
     ) {
         guard !isActive else { return }
         isActive = true
@@ -29,7 +30,12 @@ final class SelectionController {
 
         for screen in NSScreen.screens {
             let window = SelectionWindow(screen: screen)
-            let view = SelectionView(screen: screen, session: session, captureBase: captureBase)
+            let view = SelectionView(
+                screen: screen,
+                session: session,
+                captureBase: captureBase,
+                frozenScreen: frozen(screen)
+            )
             view.onCapture = { [weak self] payload, output in
                 self?.finish(payload, output)
             }
@@ -147,6 +153,9 @@ final class SelectionView: NSView {
     let screen: NSScreen
     let session: CaptureSession
     private let captureBase: (CGRect, NSScreen) async -> CGImage?
+    /// A frame taken before the overlay appeared, shown in place of the live
+    /// desktop so a menu or tooltip opened during the countdown survives.
+    private let frozenScreen: CGImage?
 
     var onCapture: ((CapturePayload, CaptureSession.Output) -> Void)?
     var onCancel: (() -> Void)?
@@ -161,8 +170,7 @@ final class SelectionView: NSView {
     private var sampleRep: NSBitmapImageRep?
     private var hoverColor: NSColor?
     private var optionHeld = false
-    private enum ColorFormat: Int { case hex, rgb, hsl }
-    private var colorFormat: ColorFormat = .hex
+    private var colorFormat: ScreenshotPreferences.ColorFormat = ScreenshotPreferences.colorFormat
     private var scrolling: ScrollingCapture?
     private var scrollHUD: ScrollHUD?
     private var scrollCancelled = false
@@ -178,10 +186,16 @@ final class SelectionView: NSView {
     private var keyMonitor: Any?
     private var sessionCancellable: AnyCancellable?
 
-    init(screen: NSScreen, session: CaptureSession, captureBase: @escaping (CGRect, NSScreen) async -> CGImage?) {
+    init(
+        screen: NSScreen,
+        session: CaptureSession,
+        captureBase: @escaping (CGRect, NSScreen) async -> CGImage?,
+        frozenScreen: CGImage? = nil
+    ) {
         self.screen = screen
         self.session = session
         self.captureBase = captureBase
+        self.frozenScreen = frozenScreen
         super.init(frame: NSRect(origin: .zero, size: screen.frame.size))
         wantsLayer = true
     }
@@ -215,6 +229,13 @@ final class SelectionView: NSView {
         // drawing a live, transparent selection during scrolling capture.
         NSColor.clear.setFill()
         dirtyRect.fill(using: .copy)
+
+        // A timed capture paints the frame taken before the overlay appeared,
+        // so menus and tooltips stay on screen while the region is chosen.
+        if let frozenScreen {
+            NSImage(cgImage: frozenScreen, size: bounds.size).draw(in: bounds)
+        }
+
         let path = NSBezierPath(rect: bounds)
         if let selection, selection.width > 1, selection.height > 1 {
             path.append(NSBezierPath(rect: selection))
@@ -480,7 +501,7 @@ final class SelectionView: NSView {
         guard sampleImage == nil else { return }
         let frame = screen.frame
         Task { [weak self] in
-            guard let self, let image = await self.captureBase(frame, self.screen) else { return }
+            guard let self, let image = await self.pixels(in: frame) else { return }
             self.sampleImage = image
             self.sampleRep = nil
             self.updateHoverColor(at: self.lastMousePoint)
@@ -488,10 +509,21 @@ final class SelectionView: NSView {
         }
     }
 
+    /// A timed capture crops the frame taken before the overlay appeared; a
+    /// live capture goes back to ScreenCaptureKit.
+    private func pixels(in global: CGRect) async -> CGImage? {
+        if let frozenScreen,
+           let cropped = ScreenCaptureService.crop(image: frozenScreen, to: global, screenFrame: screen.frame) {
+            return cropped
+        }
+        return await captureBase(global, screen)
+    }
+
     override func flagsChanged(with event: NSEvent) {
         let optionNow = event.modifierFlags.contains(.option)
         if optionNow, !optionHeld {
-            colorFormat = ColorFormat(rawValue: (colorFormat.rawValue + 1) % 3) ?? .hex
+            colorFormat = colorFormat.next
+            ScreenshotPreferences.setColorFormat(colorFormat)
             needsDisplay = true
         }
         optionHeld = optionNow
@@ -537,7 +569,7 @@ final class SelectionView: NSView {
         let global = selection.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
         let scroll = ScrollingCapture(region: global, direction: session.scrollingDirection) { [weak self] in
             guard let self else { return nil }
-            return await self.captureBase(global, self.screen)
+            return await self.pixels(in: global)
         }
         scroll.onUpdate = { [weak self] in
             guard let self, let scroll = self.scrolling else { return }
@@ -697,7 +729,7 @@ final class SelectionView: NSView {
         baseTask?.cancel()
         baseTask = Task { [weak self] in
             guard let self else { return }
-            let image = await self.captureBase(global, self.screen)
+            let image = await self.pixels(in: global)
             guard !Task.isCancelled else { return }
             self.baseImage = image
             self.needsDisplay = true

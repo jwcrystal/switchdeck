@@ -17,7 +17,7 @@ macOS 選單列小工具：16 個一鍵系統開關，加上一個內建的截�
 
 ```bash
 git clone <本專案網址> switchdeck && cd switchdeck
-swift test                      # 84 個測試，不需要 UI
+swift test                      # 103 個測試，不需要 UI
 ./scripts/build-app.sh          # 產出 build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -42,26 +42,31 @@ open build/SwitchDeck.app
 | 幕前調度自動隱藏 | `com.apple.WindowManager AutoHide` + 重啟 | 同上 |
 | 清空垃圾桶 | Finder AppleScript：`count items in trash`、`empty trash` | 需要自動化權限；TCC 會擋掉直接讀 `~/.Trash` |
 | 清空剪貼簿 | `NSPasteboard.clearContents()` | |
-| 錄音 | `AVAudioRecorder` 存到 `~/Music/SwitchDeck`，選單顯示已錄時間 | 需要麥克風權限 |
-| 截圖 | `ScreenCaptureKit` 擷取區域／視窗／全螢幕；無邊框就地編輯器，支援矩形、橢圓、直線、箭頭、畫筆、螢光筆、文字、編號、馬賽克與模糊；可複製、儲存、釘選 | 需要螢幕錄製權限；滾動截圖暫停 |
+| 錄音 | `AVAudioRecorder` 存到設定 › 錄音選的資料夾（預設 `~/Music/SwitchDeck`），可選麥克風；選單顯示已錄時間 | 需要麥克風權限 |
+| 截圖 | `ScreenCaptureKit` 擷取區域／視窗／全螢幕；無邊框就地編輯器，支援矩形、橢圓、直線、箭頭、畫筆、螢光筆、文字、編號、馬賽克與模糊；延遲擷取、HEX／RGB／HSL 讀值、PNG／JPEG／HEIC 儲存；可複製、儲存、釘選 | 需要螢幕錄製權限；滾動截圖暫停 |
 | 結束所有 App | `NSRunningApplication.terminate()`，跳過 Finder 與 SwitchDeck | 未儲存的工作仍會跳出詢問 |
 | 退出磁碟 | `NSWorkspace.unmountAndEjectDevice`，計數可卸除的卷宗 | |
 
 設定 › 自訂可以調整順序與隱藏開關，選擇存在 `~/Library/Application Support/SwitchDeck/config.json`。列可以拖曳排序；右鍵選單提供「上移／下移／在選單中顯示」給鍵盤操作。
 
+設定 › 截圖集中了擷取的所有設定：快速鍵、延遲、取色格式、儲存資料夾、檔名前綴、影像格式與簽名預設；設定 › 錄音則集中處理音訊。
+
+設定 › 錄音決定資料夾與麥克風。`AVAudioRecorder` 只能從 macOS 預設輸入錄音，所以選定的麥克風會在錄音期間成為預設，停止或結束 App 時再還原上一個裝置。
+
 ## 截圖編輯器
 
-- `⌥E` 開始擷取（預設安裝一次；可在設定 › 快速鍵更改）。
+- `⌥E` 開始擷取（預設安裝一次；可在設定 › 截圖更改）。
+- 設定 › 截圖還放著 0／3／5／10 秒延遲、儲存資料夾、檔名前綴、PNG／JPEG／HEIC 與品質滑桿、簽名文字與「新擷取預設帶簽名」，以及取色讀值的起始格式。延遲擷取會以小膠囊倒數，時間到才凍結畫面，所以倒數期間打開的選單或滑鼠停留狀態會留下來；再按一次快速鍵即取消。
 - 拖出區域後**就地**進入編輯：選取範圍留在畫面上、範圍外變暗、工具列出現在選取區下方，不開第二個視窗。點視窗即以該視窗框為範圍編輯；`F` 選整個螢幕；`R` 還原上次的區域。
 - 預設工具是「選取」。選了工具後在範圍內拖曳即可畫：矩形、橢圓、直線、箭頭（直線／曲線／折線）、手繪、螢光筆、文字（S／M／L，可加氣泡）、編號標記、馬賽克與模糊。
 - 編輯期間選取區仍保留八個控制點，可以繼續調整大小；拖曳時畫面是即時的，放開後才更新凍結的影像。
-- 選取時顯示指標下的顏色值與像素座標；`⌥` 在 HEX／RGB／HSL 之間切換，`C` 複製色值、離開擷取模式並顯示短暫的「已複製…」提示。開始編輯後不再顯示。
+- 選取時顯示指標下的顏色值與像素座標；`⌥` 在 HEX／RGB／HSL 之間切換（起始格式在設定 › 截圖），`C` 複製色值、離開擷取模式並顯示短暫的「已複製…」提示。開始編輯後不再顯示。
 - 開始編輯的瞬間影像就凍結，所以馬賽克與模糊預覽的就是存下來的結果。
 - 主要工具維持一列。選了繪圖工具，下方立刻出現一列緊湊的圖示選項：顏色、箭頭路徑（含 S 曲線）、輪廓／斜線／實心、實線／虛線／點線、標記形狀、文字大小／氣泡，以及筆畫寬度、像素效果強度或螢光筆不透明度的滑桿。再點一次使用中的工具會回到「選取」並收起選項列。
 - 在「選取」模式下點既有標記是編輯那個物件，而不是繼續新增：選項列會顯示它自己的顏色、筆畫、填色、箭頭路徑、文字大小／氣泡或標記形狀，改了立即生效，同樣的值也成為新標記的預設。拖曳與八個控制點仍可移動或縮放它。
-- 簽名按鈕加上浮水印（macOS 使用者全名）；彈出面板可改文字、顏色、位置（四角、置中或平鋪）、大小（S／M／L）、角度（0／30／45°）與不透明度。浮水印會被裁在擷取範圍內，旋轉或平鋪都不會溢出。眼睛斜線按鈕把它從影像隱藏，但文字仍留在 PNG 中介資料裡。
+- 簽名按鈕加上浮水印（macOS 使用者全名，或設定 › 截圖裡的文字）；彈出面板可改文字、顏色、位置（四角、置中或平鋪）、大小（S／M／L）、角度（0／30／45°）與不透明度。浮水印會被裁在擷取範圍內，旋轉或平鋪都不會溢出。眼睛斜線按鈕把它從影像隱藏，但文字仍留在 PNG 中介資料裡。
 - **這一版暫停滾動截圖**：工具列沒有垂直／水平入口，擷取回呼與除錯路徑都拒絕啟動，拼接引擎還留在原始碼裡但從 app 到不了。一般的區域、視窗與全螢幕擷取、標註、複製、儲存、釘選都不受影響。
-- `Enter` 複製，`Space` 直接存成 PNG 到 `~/Downloads`，檔名 `SwitchDeck Screenshot <日期>.png`（資料夾與前綴是之後設定會開出來的 UserDefaults 鍵），`P` 釘在畫面上，`⌘Z`／`⇧⌘Z` 復原與重做，`Esc` 關閉。
+- `Enter` 複製，`Space` 依設定 › 截圖選的資料夾與格式存檔（預設 `~/Downloads`、PNG），檔名 `SwitchDeck Screenshot <日期>`，`P` 釘在畫面上，`⌘Z`／`⇧⌘Z` 復原與重做，`Esc` 關閉。
 - 釘選的圖：角落 × 或 `Esc` 關閉，滾輪縮放，`⌘`+滾輪改不透明度，右鍵有複製／50% 不透明度／關閉。
 
 ## 權限
@@ -85,6 +90,8 @@ build/SwitchDeck.app/Contents/MacOS/SwitchDeck --hotkeys       # 註冊測試快
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --permissions   # app 看到的每個權限狀態
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --menu          # 建出來的選單長怎樣
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --capture-test  # 擷取主螢幕並回報結果
+build/SwitchDeck.app/Contents/MacOS/SwitchDeck --audio-inputs  # CoreAudio 看到的麥克風，標出預設
+build/SwitchDeck.app/Contents/MacOS/SwitchDeck --timed-demo    # 跑一次 3 秒延遲擷取，方便目視檢查
 ```
 
 ```

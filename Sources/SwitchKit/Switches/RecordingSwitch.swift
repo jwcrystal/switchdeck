@@ -1,19 +1,50 @@
 import AVFoundation
+import AppKit
+import CoreAudio
 import Foundation
 
-/// Records audio to `~/Music/SwitchDeck` with one click, and stops with the
-/// second. The menu shows the elapsed time while recording.
+/// Records audio to `~/Music/SwitchDeck` (or the folder chosen in Settings ›
+/// Recording) with one click, and stops with the second. The menu shows the
+/// elapsed time while recording.
 public final class RecordingSwitch {
+    public static let folderDefaultsKey = "RecordingFolder"
+    public static let inputDeviceDefaultsKey = "RecordingInputDevice"
+
     private var recorder: AVAudioRecorder?
     private var startedAt: Date?
+    private var previousInputDevice: AudioDeviceID?
+    private var terminateObserver: NSObjectProtocol?
     public private(set) var lastFileURL: URL?
 
-    public init() {}
+    public init() {
+        // Quitting mid-recording must not leave the system input switched.
+        terminateObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.restoreInputDevice()
+        }
+    }
 
-    public var folder: URL {
+    deinit {
+        if let terminateObserver {
+            NotificationCenter.default.removeObserver(terminateObserver)
+        }
+        restoreInputDevice()
+    }
+
+    public static var defaultFolder: URL {
         let music = FileManager.default.urls(for: .musicDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory())
         return music.appendingPathComponent("SwitchDeck")
+    }
+
+    public var folder: URL {
+        if let path = UserDefaults.standard.string(forKey: Self.folderDefaultsKey), !path.isEmpty {
+            return URL(fileURLWithPath: path, isDirectory: true)
+        }
+        return Self.defaultFolder
     }
 
     public var isRecording: Bool { recorder?.isRecording ?? false }
@@ -36,6 +67,7 @@ public final class RecordingSwitch {
         recorder?.stop()
         recorder = nil
         startedAt = nil
+        restoreInputDevice()
     }
 
     private func requestPermissionAndStart() throws {
@@ -70,13 +102,44 @@ public final class RecordingSwitch {
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
         ]
 
-        let recorder = try AVAudioRecorder(url: url, settings: settings)
+        applyChosenInputDevice()
+
+        let recorder: AVAudioRecorder
+        do {
+            recorder = try AVAudioRecorder(url: url, settings: settings)
+        } catch {
+            restoreInputDevice()
+            throw error
+        }
+
         guard recorder.record() else {
+            restoreInputDevice()
             throw SwitchDeckError.message("The recorder could not start.")
         }
 
         self.recorder = recorder
         self.startedAt = Date()
         self.lastFileURL = url
+    }
+
+    /// `AVAudioRecorder` follows the system default input, so a chosen
+    /// microphone is installed for the length of the recording and put back by
+    /// `stop()`. A missing device leaves the default alone.
+    private func applyChosenInputDevice() {
+        let uid = UserDefaults.standard.string(forKey: Self.inputDeviceDefaultsKey) ?? ""
+        guard !uid.isEmpty,
+              let chosen = AudioInput.devices().first(where: { $0.id == uid }),
+              let current = AudioInput.defaultDeviceID(),
+              chosen.deviceID != current
+        else { return }
+
+        guard AudioInput.setDefaultDevice(chosen.deviceID) else { return }
+        previousInputDevice = current
+    }
+
+    private func restoreInputDevice() {
+        guard let previousInputDevice else { return }
+        AudioInput.setDefaultDevice(previousInputDevice)
+        self.previousInputDevice = nil
     }
 }

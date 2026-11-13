@@ -15,7 +15,7 @@ struct SettingsView: View {
     }
 
     enum Pane: String, CaseIterable, Identifiable {
-        case general, customize, shortcuts, about
+        case general, customize, screenshot, recording, shortcuts, about
 
         var id: String { rawValue }
 
@@ -23,6 +23,8 @@ struct SettingsView: View {
             switch self {
             case .general: return "General"
             case .customize: return "Customize"
+            case .screenshot: return "Screenshot"
+            case .recording: return "Recording"
             case .shortcuts: return "Shortcuts"
             case .about: return "About"
             }
@@ -32,6 +34,8 @@ struct SettingsView: View {
             switch self {
             case .general: return "gearshape"
             case .customize: return "slider.horizontal.3"
+            case .screenshot: return "camera.viewfinder"
+            case .recording: return "record.circle"
             case .shortcuts: return "keyboard"
             case .about: return "info.circle"
             }
@@ -64,6 +68,8 @@ struct SettingsView: View {
         switch pane ?? .general {
         case .general: GeneralPane(permissions: permissions)
         case .customize: CustomizePane(model: model)
+        case .screenshot: ScreenshotPane(model: model)
+        case .recording: RecordingPane()
         case .shortcuts: ShortcutsPane(model: model)
         case .about: AboutPane()
         }
@@ -314,14 +320,512 @@ private struct CustomizePane: View {
     }
 }
 
+// MARK: - Screenshot
+
+/// The tinted row container the panes share.
+private struct SettingsCard<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 4)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06))
+        }
+    }
+}
+
+private struct ScreenshotPane: View {
+    @ObservedObject var model: AppModel
+
+    @AppStorage(ScreenshotPreferences.prefixKey) private var prefix = "SwitchDeck"
+    @AppStorage(ScreenshotPreferences.formatKey) private var format = "png"
+    @AppStorage(ScreenshotPreferences.qualityKey) private var quality = 0.9
+    @AppStorage(ScreenshotPreferences.delayKey) private var delay = 0
+    @AppStorage(ScreenshotPreferences.colorFormatKey) private var colorFormat = 0
+    @AppStorage(ScreenshotPreferences.watermarkDefaultKey) private var watermarkDefault = false
+    @AppStorage(ScreenshotPreferences.watermarkTextKey) private var watermarkText = ""
+
+    @State private var folderPath = ScreenshotPreferences.folder.path
+
+    private var selectedFormat: ScreenshotPreferences.ImageFormat {
+        ScreenshotPreferences.ImageFormat(rawValue: format) ?? .png
+    }
+
+    private var isCustomFolder: Bool {
+        folderPath != ScreenshotPreferences.downloads.path
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 26) {
+                PaneHeader(
+                    title: "Screenshot",
+                    subtitle: "The capture shortcut, how it behaves, and what happens to saved images."
+                )
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(text: "Shortcut")
+
+                    SettingsCard {
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "camera.viewfinder")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Capture")
+                                Text("Starts a region, window or full-screen capture from any app.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            ShortcutField(model: model, id: ScreenshotCoordinator.id)
+                        }
+                        .padding(.vertical, 6)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(text: "Capture")
+
+                    SettingsCard {
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "timer")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Delay")
+                                Text("Counts down before the overlay appears, so a menu or hover state can be caught.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Picker("", selection: $delay) {
+                                Text("Off").tag(0)
+                                Text("3 s").tag(3)
+                                Text("5 s").tag(5)
+                                Text("10 s").tag(10)
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .frame(width: 220)
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "eyedropper")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Colour readout")
+                                Text("Format shown under the pointer; ⌥ still cycles while capturing.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Picker("", selection: $colorFormat) {
+                                ForEach(ScreenshotPreferences.ColorFormat.allCases) { item in
+                                    Text(item.title).tag(item.rawValue)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .frame(width: 180)
+                        }
+                        .padding(.vertical, 6)
+                    }
+
+                    if delay > 0 {
+                        Text("The frame is taken when the countdown ends; a second press of the shortcut cancels it.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(text: "Saving")
+
+                    SettingsCard {
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "folder")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Save to")
+                                Text(abbreviated(folderPath))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .help(folderPath)
+                            }
+                            Spacer()
+                            Button("Choose…") { chooseFolder() }
+                                .controlSize(.small)
+                            Button {
+                                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: folderPath)])
+                            } label: {
+                                Image(systemName: "arrow.up.forward.app")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Show in Finder")
+                            if isCustomFolder {
+                                Button("Downloads") { useDownloads() }
+                                    .controlSize(.small)
+                                    .help("Save to ~/Downloads again")
+                            }
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 12) {
+                                SymbolTile(symbol: "textformat")
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("File name prefix")
+                                    Text("Goes before “Screenshot <date>”. Empty removes it.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                TextField("SwitchDeck", text: $prefix)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 168)
+                            }
+
+                            Text("Saves as \(ScreenshotPreferences.fileName(prefix: prefix, format: selectedFormat))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .padding(.leading, 36)
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "photo")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Format")
+                                Text(selectedFormat.isLossy
+                                     ? "Smaller files; the signature text only stays in PNG metadata."
+                                     : "Lossless, and keeps the signature text in the file's metadata.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Picker("", selection: $format) {
+                                ForEach(ScreenshotPreferences.ImageFormat.allCases) { item in
+                                    Text(item.title).tag(item.rawValue)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .frame(width: 180)
+                        }
+                        .padding(.vertical, 6)
+
+                        if selectedFormat.isLossy {
+                            RowDivider()
+
+                            HStack(spacing: 12) {
+                                SymbolTile(symbol: "dial.medium")
+                                Text("Quality")
+                                Spacer()
+                                Slider(value: $quality, in: 0.5...1.0)
+                                    .frame(width: 168)
+                                Text("\(Int((quality * 100).rounded()))%")
+                                    .font(.system(size: 12, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 36, alignment: .trailing)
+                            }
+                            .padding(.vertical, 6)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(text: "Watermark")
+
+                    SettingsCard {
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "signature")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Add a signature by default")
+                                Text("Each capture still has its own toggle in the editor.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $watermarkDefault)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .controlSize(.small)
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "character.cursor.ibeam")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Text")
+                                Text("Empty uses the macOS full user name.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            TextField(ScreenshotPreferences.defaultWatermarkText, text: $watermarkText)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 200)
+                        }
+                        .padding(.vertical, 6)
+                    }
+
+                    Text("In the editor: Return copies, Space saves, P pins, Esc cancels.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(28)
+        }
+    }
+
+    private func abbreviated(_ path: String) -> String {
+        (path as NSString).abbreviatingWithTildeInPath
+    }
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = URL(fileURLWithPath: folderPath)
+        panel.prompt = "Choose"
+        panel.message = "Where saved screenshots go"
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        UserDefaults.standard.set(url.path, forKey: ScreenshotPreferences.folderKey)
+        folderPath = url.path
+    }
+
+    private func useDownloads() {
+        UserDefaults.standard.removeObject(forKey: ScreenshotPreferences.folderKey)
+        folderPath = ScreenshotPreferences.downloads.path
+    }
+}
+
+// MARK: - Recording
+
+private struct RecordingPane: View {
+    @AppStorage(RecordingSwitch.folderDefaultsKey) private var folder = ""
+    @AppStorage(RecordingSwitch.inputDeviceDefaultsKey) private var inputUID = ""
+
+    @State private var devices: [AudioInput.Device] = []
+
+    private var folderPath: String {
+        folder.isEmpty ? RecordingSwitch.defaultFolder.path : folder
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 26) {
+                PaneHeader(
+                    title: "Recording",
+                    subtitle: "Where audio goes, and which microphone it hears."
+                )
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(text: "Storage")
+
+                    SettingsCard {
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "folder")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Save to")
+                                Text(abbreviated(folderPath))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .help(folderPath)
+                            }
+                            Spacer()
+                            Button("Choose…") { chooseFolder() }
+                                .controlSize(.small)
+                            Button {
+                                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: folderPath)])
+                            } label: {
+                                Image(systemName: "arrow.up.forward.app")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Show in Finder")
+                            if !folder.isEmpty {
+                                Button("Music") { folder = "" }
+                                    .controlSize(.small)
+                                    .help("Use ~/Music/SwitchDeck again")
+                            }
+                        }
+                        .padding(.vertical, 6)
+                    }
+
+                    Text("Recordings are AAC in an .m4a file, named “Recording <date>.m4a”.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(text: "Input")
+
+                    SettingsCard {
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "mic")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Microphone")
+                                Text("Used from the next recording on. A missing device falls back to the system default.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Picker("", selection: $inputUID) {
+                                Text("System default").tag("")
+                                ForEach(devices) { device in
+                                    Text(device.name).tag(device.id)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 220)
+                        }
+                        .padding(.vertical, 6)
+                    }
+
+                    Text("AVAudioRecorder only records from the macOS default input, so SwitchDeck switches that default while a recording runs and puts the previous one back when it stops.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(28)
+        }
+        .onAppear {
+            devices = AudioInput.devices()
+            if !inputUID.isEmpty, !devices.contains(where: { $0.id == inputUID }) {
+                inputUID = ""
+            }
+        }
+    }
+
+    private func abbreviated(_ path: String) -> String {
+        (path as NSString).abbreviatingWithTildeInPath
+    }
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = URL(fileURLWithPath: folderPath)
+        panel.prompt = "Choose"
+        panel.message = "Where recordings go"
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        folder = url.path
+    }
+}
+
 // MARK: - Shortcuts
+
+/// Record / change / clear one shortcut. Shared by Shortcuts and Screenshot so
+/// both panes behave the same way.
+private struct ShortcutField: View {
+    @ObservedObject var model: AppModel
+    let id: String
+
+    @State private var recording = false
+    @State private var hint: String?
+    @State private var monitor = KeyCaptureMonitor()
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if recording {
+                Text(hint ?? "Press shortcut…")
+                    .font(.callout)
+                    .foregroundStyle(hint == nil ? Color.secondary : Color.orange)
+                ProgressView()
+                    .controlSize(.small)
+                Button("Cancel", action: stop)
+                    .buttonStyle(.borderless)
+                    .font(.callout)
+            } else if let binding = model.config.hotkey(for: id) {
+                Text(binding.displayString)
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                Button("Change", action: start)
+                    .buttonStyle(.borderless)
+                    .font(.callout)
+                Button {
+                    model.setHotkey(nil, for: id)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.quaternary)
+                }
+                .buttonStyle(.borderless)
+                .help("Clear shortcut")
+            } else {
+                Button("Record", action: start)
+                    .controlSize(.small)
+            }
+        }
+        .onDisappear(perform: stop)
+    }
+
+    private func start() {
+        hint = nil
+        recording = true
+
+        monitor.start { event in
+            if event.keyCode == 53 {
+                stop()
+                return true
+            }
+            if event.keyCode == 51 || event.keyCode == 117 {
+                model.setHotkey(nil, for: id)
+                stop()
+                return true
+            }
+
+            guard let binding = HotkeyRecorder.binding(from: event) else {
+                hint = "Add ⌘, ⌥ or ⌃."
+                return true
+            }
+
+            model.setHotkey(binding, for: id)
+            stop()
+            return true
+        }
+    }
+
+    private func stop() {
+        monitor.stop()
+        recording = false
+        hint = nil
+    }
+}
 
 private struct ShortcutsPane: View {
     @ObservedObject var model: AppModel
-
-    @State private var recordingID: String?
-    @State private var recorderMessage: String?
-    @State private var monitor = KeyCaptureMonitor()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -333,21 +837,27 @@ private struct ShortcutsPane: View {
             .padding(.top, 28)
 
             List {
-                ForEach(model.orderedItems, id: \.id) { item in
-                    row(for: item)
-                        .opacity(model.config.isEnabled(item.id) ? 1 : 0.45)
+                ForEach(model.orderedItems.filter { $0.id != ScreenshotCoordinator.id }, id: \.id) { item in
+                    HStack(spacing: 10) {
+                        SymbolTile(symbol: item.symbolName)
+                        Text(item.title)
+
+                        Spacer()
+
+                        ShortcutField(model: model, id: item.id)
+                    }
+                    .padding(.vertical, 4)
+                    .opacity(model.config.isEnabled(item.id) ? 1 : 0.45)
                 }
             }
             .listStyle(.inset)
             .scrollContentBackground(.hidden)
             .padding(.horizontal, 12)
 
-            if let recorderMessage {
-                Text(recorderMessage)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .padding(.horizontal, 28)
-            }
+            Text("Screenshot’s shortcut lives in Settings › Screenshot, next to where its images go.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 28)
 
             ForEach(model.hotkeyIssues, id: \.self) { issue in
                 Text(issue)
@@ -357,77 +867,6 @@ private struct ShortcutsPane: View {
             }
         }
         .padding(.bottom, 20)
-        .onDisappear { stopRecording() }
-    }
-
-    @ViewBuilder
-    private func row(for item: SwitchItem) -> some View {
-        HStack(spacing: 10) {
-            SymbolTile(symbol: item.symbolName)
-            Text(item.title)
-
-            Spacer()
-
-            if recordingID == item.id {
-                Text("Press shortcut…")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                ProgressView()
-                    .controlSize(.small)
-            } else if let binding = model.config.hotkey(for: item.id) {
-                Text(binding.displayString)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                Button("Change") { startRecording(item.id) }
-                    .buttonStyle(.borderless)
-                    .font(.callout)
-                Button {
-                    model.setHotkey(nil, for: item.id)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.quaternary)
-                }
-                .buttonStyle(.borderless)
-                .help("Clear shortcut")
-            } else {
-                Button("Record") { startRecording(item.id) }
-                    .controlSize(.small)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func startRecording(_ id: String) {
-        recorderMessage = nil
-        recordingID = id
-
-        monitor.start { event in
-            if event.keyCode == 53 {
-                stopRecording()
-                return true
-            }
-            if event.keyCode == 51 || event.keyCode == 117 {
-                model.setHotkey(nil, for: id)
-                stopRecording()
-                return true
-            }
-
-            guard let binding = HotkeyRecorder.binding(from: event) else {
-                recorderMessage = "Add ⌘, ⌥ or ⌃ to the shortcut."
-                return true
-            }
-
-            model.setHotkey(binding, for: id)
-            stopRecording()
-            return true
-        }
-    }
-
-    private func stopRecording() {
-        monitor.stop()
-        recordingID = nil
     }
 }
 

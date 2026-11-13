@@ -33,6 +33,11 @@ enum SwitchDeckApp {
             return
         }
 
+        if arguments.contains("--audio-inputs") {
+            Dump.printAudioInputs()
+            return
+        }
+
         if arguments.contains("--probe-automation") {
             Dump.probeAutomation()
             return
@@ -157,6 +162,16 @@ enum Dump {
             atomically: true,
             encoding: .utf8
         )
+    }
+
+    /// Lists the microphones CoreAudio offers, marking the default. Used to
+    /// check the Settings › Recording picker without opening the window.
+    static func printAudioInputs() {
+        let devices = AudioInput.devices()
+        for device in devices {
+            print("\(device.id)\t\(device.name)\(device.isDefault ? "\t(default)" : "")")
+        }
+        if devices.isEmpty { print("no input devices") }
     }
 
     /// Sends one harmless event per target, the same call the Grant button

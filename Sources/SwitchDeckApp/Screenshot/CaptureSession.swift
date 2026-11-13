@@ -67,7 +67,7 @@ final class CaptureSession: ObservableObject {
     @Published var annotations: [Annotation] = [] {
         didSet { refreshHistoryAvailability() }
     }
-    @Published var watermarkEnabled = false
+    @Published var watermarkEnabled = ScreenshotPreferences.watermarkOnByDefault
     @Published var watermarkHidden = false
     @Published var watermarkPlacement: AnnotationRenderer.WatermarkOptions.Placement = .bottomRight
     @Published var watermarkScale: CGFloat = 0.02
@@ -75,10 +75,16 @@ final class CaptureSession: ObservableObject {
     @Published var watermarkOpacity: CGFloat = 0.6
     @Published var watermarkColor: Color = .white
 
-    @Published var watermarkText: String = {
-        let name = NSFullUserName()
-        return name.isEmpty ? "SwitchDeck" : name
-    }()
+    @Published var watermarkText: String = ScreenshotPreferences.defaultWatermarkText
+
+    /// Every capture starts from Settings › Screenshot rather than from
+    /// whatever the previous screenshot left behind.
+    func prepareForCapture() {
+        watermarkEnabled = ScreenshotPreferences.watermarkOnByDefault
+        let stored = ScreenshotPreferences.watermarkText
+        watermarkText = stored.isEmpty ? ScreenshotPreferences.defaultWatermarkText : stored
+        watermarkHidden = false
+    }
 
     var watermarkOptions: AnnotationRenderer.WatermarkOptions? {
         guard watermarkEnabled else { return nil }

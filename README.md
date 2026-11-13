@@ -17,7 +17,7 @@ A macOS menu-bar app with sixteen one-click system switches and a built-in scree
 
 ```bash
 git clone <this repository> switchdeck && cd switchdeck
-swift test                      # 84 tests, no UI needed
+swift test                      # 103 tests, no UI needed
 ./scripts/build-app.sh          # builds build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -42,28 +42,31 @@ Launch at login needs the app in `/Applications`; until then the toggle in Setti
 | Stage Manager Autohide | `com.apple.WindowManager AutoHide` + restart | Same |
 | Empty Trash | Finder AppleScript: `count items in trash`, `empty trash` | Needs Automation; direct `~/.Trash` reads are blocked by TCC |
 | Empty Pasteboard | `NSPasteboard.clearContents()` | |
-| Recording | `AVAudioRecorder` to `~/Music/SwitchDeck`, elapsed time in the menu | Needs Microphone |
+| Recording | `AVAudioRecorder` to the folder chosen in Settings › Recording (default `~/Music/SwitchDeck`), with a microphone picker; elapsed time in the menu | Needs Microphone |
 | Screenshot | ScreenCaptureKit region/window/full-screen capture; borderless editor with rectangle, ellipse, line, arrow, pen, highlighter, text, numbering, mosaic and blur; copy, save, pin | Needs Screen Recording; scrolling capture is paused |
 | Quit All Apps | `NSRunningApplication.terminate()`, skips Finder and SwitchDeck | Unsaved work still prompts |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, counts removable volumes | |
 
 Settings › Customize reorders and hides switches; the choice is stored in `~/Library/Application Support/SwitchDeck/config.json`. Rows are dragged into place; a context menu offers Move Up / Move Down / Show in Menu for keyboard use.
 
-Settings › Screenshot holds the capture shortcut, the save folder and the file-name prefix next to each other, so screenshot configuration is not scattered across panes.
+Settings › Screenshot gathers everything about a capture — shortcut, delay, colour-readout format, save folder, file-name prefix, image format and signature defaults — and Settings › Recording does the same for audio.
+
+Settings › Recording picks the folder and the microphone. `AVAudioRecorder` only records from the macOS default input, so a chosen microphone becomes the default for as long as a recording runs, and the previous device is restored on stop or quit.
 
 ## Screenshot editor
 
 - `⌥E` starts a capture (installed once as a default; change it in Settings › Screenshot).
+- Settings › Screenshot also holds a 0 / 3 / 5 / 10 s delay, the save folder, the file-name prefix, PNG / JPEG / HEIC with a quality slider, the signature text and whether a new capture starts with it, and the starting format for the colour readout. A delayed capture counts down in a small pill and freezes the screen when the clock ends, so a menu or hover state opened during the countdown survives; pressing the shortcut again cancels it.
 - Dragging a region enters editing **in place**: the selection stays on screen, everything outside dims, and the toolbar appears under the region — no second window. Clicking a window edits at that window's frame; `F` selects the whole screen; `R` restores the last region.
 - The default tool is Select. With a tool active, dragging inside draws: rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (S/M/L, optional bubble), numbered markers, mosaic and blur.
 - The region keeps its eight handles while editing, so it can still be resized; while dragging, the live screen shows through and the frozen image is refreshed on release.
-- While selecting, the colour under the pointer is shown with its value and pixel coordinates; `⌥` cycles HEX / RGB / HSL, and `C` copies the value, leaves capture mode and shows a short "Copied …" toast. The readout is hidden once editing starts.
+- While selecting, the colour under the pointer is shown with its value and pixel coordinates; `⌥` cycles HEX / RGB / HSL (the starting format is set in Settings › Screenshot), and `C` copies the value, leaves capture mode and shows a short "Copied …" toast. The readout is hidden once editing starts.
 - The region is frozen the moment editing starts, so mosaic and blur preview exactly what gets saved.
 - Main tools stay on one row. Selecting a drawing tool reveals a compact horizontal icon row immediately below it: colour, arrow paths (including an S curve), outline/hatched/solid shapes, solid/dashed/dotted strokes, marker shape, text sizes/bubble and sliders for stroke width, pixel-effect strength or highlighter opacity. Clicking the active tool returns to Select and closes the options row.
 - With Select, clicking an existing mark edits that object instead of the next one: the options row shows its own colour, stroke, fill, arrow path, text size/bubble or marker shape, changes apply live, and the same values become the default for new marks. Dragging and the eight handles still move or resize it.
-- The signature button adds a watermark (the macOS full user name); its popover edits the text, colour, position (four corners, centre or a tiled pattern), size (S/M/L), angle (0/30/45°) and opacity. It is clipped to the capture, so a rotated or tiled watermark never spills outside the selection. The eye-slash button hides it from the image but keeps the text in the PNG metadata.
+- The signature button adds a watermark (the macOS full user name, or the text in Settings › Screenshot); its popover edits the text, colour, position (four corners, centre or a tiled pattern), size (S/M/L), angle (0/30/45°) and opacity. It is clipped to the capture, so a rotated or tiled watermark never spills outside the selection. The eye-slash button hides it from the image but keeps the text in the PNG metadata.
 - **Scrolling capture is paused in this build**: the toolbar shows no vertical/horizontal entry, the capture callback and debug route refuse to start it, and the stitching engine stays in the source but cannot be reached from the app. Normal region, window and full-screen capture, annotation, copy, save and pin are unaffected.
-- `Enter` copies, `Space` saves a PNG into the folder chosen in Settings › Screenshot (`~/Downloads` by default) as `SwitchDeck Screenshot <date>.png`, `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo edits, `Esc` closes.
+- `Enter` copies, `Space` saves an image into the folder and format chosen in Settings › Screenshot (`~/Downloads`, PNG by default) as `SwitchDeck Screenshot <date>`, `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo edits, `Esc` closes.
 - Pinned images: the corner × or `Esc` closes, scroll resizes, `⌘`-scroll changes opacity, right-click has Copy / 50% Opacity / Close.
 
 ## Permissions
@@ -87,6 +90,8 @@ build/SwitchDeck.app/Contents/MacOS/SwitchDeck --hotkeys       # register a prob
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --permissions   # what the app sees for each permission
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --menu          # the menu as it is built
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --capture-test  # capture the main display, report the result
+build/SwitchDeck.app/Contents/MacOS/SwitchDeck --audio-inputs  # microphones CoreAudio offers, default marked
+build/SwitchDeck.app/Contents/MacOS/SwitchDeck --timed-demo    # run the 3 s delayed capture for a visual check
 ```
 
 ```

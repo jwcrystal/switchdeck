@@ -10,10 +10,16 @@ final class ScreenshotCoordinator {
     private let selections = SelectionController()
     private let capture = ScreenCaptureService()
     private var pinnedWindows: [NSWindow] = []
+    private var countdown: CaptureCountdown?
+    /// Frames taken just before a timed overlay appeared, keyed by display.
+    private var frozenScreens: [CGDirectDisplayID: CGImage] = [:]
+
+    /// The catalog id, also used for the shortcut the settings pane edits.
+    static let id = "screenshot"
 
     var switchItem: SwitchItem {
         SwitchItem(
-            id: "screenshot",
+            id: Self.id,
             title: "Screenshot",
             symbolName: "camera.viewfinder",
             kind: .action,
@@ -29,7 +35,44 @@ final class ScreenshotCoordinator {
     }
 
     func begin() {
-        start(initialSelection: nil)
+        guard !selections.isActive else { return }
+
+        // A second press while the clock runs calls the capture off.
+        if let countdown {
+            countdown.cancel()
+            self.countdown = nil
+            return
+        }
+
+        let seconds = ScreenshotPreferences.delaySeconds
+        guard seconds > 0 else {
+            start(initialSelection: nil)
+            return
+        }
+
+        let hud = CaptureCountdown(seconds: seconds)
+        countdown = hud
+        hud.start { [weak self] in
+            guard let self else { return }
+            self.countdown = nil
+            Task { @MainActor in
+                let frozen = await self.captureEveryScreen()
+                self.start(initialSelection: nil, frozen: frozen)
+            }
+        }
+    }
+
+    /// Debug: runs the real delayed path with a 3 second clock, so the pill and
+    /// the frozen frame can be checked without pressing the shortcut.
+    func beginTimedDemo() {
+        let stored = UserDefaults.standard.object(forKey: ScreenshotPreferences.delayKey)
+        UserDefaults.standard.set(3, forKey: ScreenshotPreferences.delayKey)
+        begin()
+        if let stored {
+            UserDefaults.standard.set(stored, forKey: ScreenshotPreferences.delayKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: ScreenshotPreferences.delayKey)
+        }
     }
 
     /// Debug: opens the overlay with a region already in edit mode, so the
@@ -115,8 +158,14 @@ final class ScreenshotCoordinator {
         }
     }
 
-    private func start(initialSelection: CGRect?) {
+    private func start(
+        initialSelection: CGRect?,
+        frozen: [CGDirectDisplayID: CGImage] = [:]
+    ) {
         guard !selections.isActive else { return }
+
+        frozenScreens = frozen
+        selections.session.prepareForCapture()
 
         selections.begin(
             onCapture: { [weak self] payload, output in
@@ -124,16 +173,39 @@ final class ScreenshotCoordinator {
                     await self?.finish(payload, output)
                 }
             },
-            onCancel: {},
+            onCancel: { [weak self] in
+                self?.frozenScreens.removeAll()
+            },
             captureBase: { [weak self] rect, screen in
                 await self?.captureRegion(rect, screen)
             },
-            initialSelection: initialSelection
+            initialSelection: initialSelection,
+            frozen: { [weak self] screen in
+                guard let self, let id = Self.displayID(for: screen) else { return nil }
+                return self.frozenScreens[id]
+            }
         )
+    }
+
+    /// One frame per display, taken while the desktop is still untouched.
+    private func captureEveryScreen() async -> [CGDirectDisplayID: CGImage] {
+        var frames: [CGDirectDisplayID: CGImage] = [:]
+        for screen in NSScreen.screens {
+            guard let id = Self.displayID(for: screen),
+                  let image = try? await capture.captureDisplay(displayID: id, excludingOwnApp: true)
+            else { continue }
+            frames[id] = image
+        }
+        return frames
     }
 
     private func captureRegion(_ rect: CGRect, _ screen: NSScreen) async -> CGImage? {
         guard let displayID = Self.displayID(for: screen) else { return nil }
+
+        if let frozen = frozenScreens[displayID] {
+            return ScreenCaptureService.crop(image: frozen, to: rect, screenFrame: screen.frame)
+        }
+
         return try? await capture.captureRegion(
             displayID: displayID,
             rect: rect,
@@ -145,6 +217,7 @@ final class ScreenshotCoordinator {
     // MARK: - Finish
 
     private func finish(_ payload: CapturePayload, _ output: CaptureSession.Output) async {
+        defer { frozenScreens.removeAll() }
         do {
             // The overlay already froze the region for live mosaic/blur; only
             // capture again if that never arrived.
@@ -184,7 +257,12 @@ final class ScreenshotCoordinator {
 
     private func save(_ image: NSImage, watermark: AnnotationRenderer.WatermarkOptions?) {
         guard ScreenshotSaver.save(image, watermark: watermark) != nil else {
-            present(ScreenCaptureService.CaptureError.captureFailed("The PNG could not be written to ~/Downloads."))
+            let folder = (ScreenshotPreferences.folder.path as NSString).abbreviatingWithTildeInPath
+            present(
+                ScreenCaptureService.CaptureError.captureFailed(
+                    "The screenshot could not be written to \(folder)."
+                )
+            )
             return
         }
     }
@@ -255,6 +333,100 @@ final class ScreenshotCoordinator {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
         return formatter.string(from: Date())
+    }
+}
+
+/// Floating pill that counts down before a timed capture. It never takes key
+/// focus or clicks, so whatever the user is setting up underneath keeps going.
+@MainActor
+final class CaptureCountdown {
+    private let totalSeconds: Int
+    private var panel: NSPanel?
+    private var label: NSTextField?
+    private var task: Task<Void, Never>?
+
+    init(seconds: Int) {
+        totalSeconds = seconds
+    }
+
+    func start(onFinish: @escaping () -> Void) {
+        show()
+
+        task = Task { [weak self] in
+            guard let self else { return }
+            for remaining in stride(from: self.totalSeconds, through: 1, by: -1) {
+                if Task.isCancelled {
+                    self.close()
+                    return
+                }
+                self.update(remaining)
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+            if Task.isCancelled {
+                self.close()
+                return
+            }
+            self.close()
+            onFinish()
+        }
+    }
+
+    func cancel() {
+        task?.cancel()
+        task = nil
+        close()
+    }
+
+    private func show() {
+        let size = NSSize(width: 190, height: 54)
+        let panel = NSPanel(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = .floating
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.ignoresMouseEvents = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+
+        let content = NSView(frame: NSRect(origin: .zero, size: size))
+        content.wantsLayer = true
+        content.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.72).cgColor
+        content.layer?.cornerRadius = 14
+        content.layer?.cornerCurve = .continuous
+
+        let label = NSTextField(labelWithString: "")
+        label.font = .systemFont(ofSize: 16, weight: .semibold)
+        label.textColor = .white
+        label.alignment = .center
+        label.frame = NSRect(x: 12, y: (size.height - 22) / 2, width: size.width - 24, height: 22)
+        content.addSubview(label)
+
+        panel.contentView = content
+
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let origin = NSPoint(
+            x: screen.visibleFrame.midX - size.width / 2,
+            y: screen.visibleFrame.maxY - size.height - 56
+        )
+        panel.setFrame(NSRect(origin: origin, size: size), display: true)
+        panel.orderFrontRegardless()
+
+        self.panel = panel
+        self.label = label
+    }
+
+    private func update(_ seconds: Int) {
+        label?.stringValue = "Screenshot in \(seconds)…"
+    }
+
+    private func close() {
+        panel?.orderOut(nil)
+        panel = nil
+        label = nil
     }
 }
 
