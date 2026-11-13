@@ -11,8 +11,30 @@ final class ScreenCaptureService {
     /// asks for a frame several times a second, so keep it briefly.
     private var cachedContent: (content: SCShareableContent, date: Date)?
 
+    static let cacheMaxAge: TimeInterval = 20
+
+    /// A cached inventory can serve an exclusion list when it is fresh and
+    /// already knows every window to exclude.
+    static func canReuse(cachedWindowIDs: Set<CGWindowID>, age: TimeInterval, excluding: Set<CGWindowID>) -> Bool {
+        age < cacheMaxAge && excluding.isSubset(of: cachedWindowIDs)
+    }
+
+    /// Reuses the cache while it is fresh and holds every excluded window.
+    private func shareableContent(excluding: Set<CGWindowID>) async throws -> SCShareableContent {
+        if excluding.isEmpty { return try await shareableContent() }
+        if let cachedContent,
+           Self.canReuse(
+            cachedWindowIDs: Set(cachedContent.content.windows.map(\.windowID)),
+            age: Date().timeIntervalSince(cachedContent.date),
+            excluding: excluding
+           ) {
+            return cachedContent.content
+        }
+        return try await shareableContent(refresh: true)
+    }
+
     private func shareableContent(refresh: Bool = false) async throws -> SCShareableContent {
-        if !refresh, let cachedContent, Date().timeIntervalSince(cachedContent.date) < 20 {
+        if !refresh, let cachedContent, Date().timeIntervalSince(cachedContent.date) < Self.cacheMaxAge {
             return cachedContent.content
         }
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
@@ -107,7 +129,7 @@ final class ScreenCaptureService {
     ) async throws -> CGImage {
         guard CGPreflightScreenCaptureAccess() else { throw CaptureError.permission }
 
-        let content = try await shareableContent(refresh: !excludingWindowIDs.isEmpty)
+        let content = try await shareableContent(excluding: excludingWindowIDs)
         guard let display = content.displays.first(where: { $0.displayID == displayID }) else {
             throw CaptureError.displayNotFound
         }

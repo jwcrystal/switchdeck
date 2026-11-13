@@ -41,6 +41,15 @@ final class FixedEdgeCaptureTests: XCTestCase {
     }
 
     @MainActor
+    func testReportedHeightExcludesFixedEdgesUntilTheyAreReAdded() throws {
+        let frames = [Self.frame(offset: 0), Self.frame(offset: 40), Self.frame(offset: 80)]
+        let composed = try XCTUnwrap(ScrollingCapture.debugCompose(frames))
+        // Fixed header (60) and footer (40) are re-added only when composing.
+        XCTAssertEqual(ScrollingCapture.debugReportedHeight(frames), composed.height - 60 - 40)
+        XCTAssertEqual(ScrollingCapture.debugReportedHeight(frames), 460)
+    }
+
+    @MainActor
     func testFixedHeaderFooterAndSidebarsAreNotRepeated() throws {
         let a = Self.frame(offset: 0), b = Self.frame(offset: 40), c = Self.frame(offset: 80)
         let result = try XCTUnwrap(ScrollingCapture.debugCompose([a, b, c]))

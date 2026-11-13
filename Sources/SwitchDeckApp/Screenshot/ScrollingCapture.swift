@@ -48,12 +48,6 @@ final class ScrollingCapture {
     func start() {
         guard !isRunning else { return }
         isRunning = true
-        let header = "\(String(format: "%.3f", Date().timeIntervalSince1970)) start region=\(region.integral)\n"
-        try? header.write(
-            to: URL(fileURLWithPath: "/tmp/switchdeck-scroll.log"),
-            atomically: true,
-            encoding: .utf8
-        )
 
         timer = Timer.scheduledTimer(withTimeInterval: 0.14, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
@@ -82,7 +76,6 @@ final class ScrollingCapture {
 
     private func complete() {
         finishRequested = false
-        log("stop slices=\(slices.count) height=\(totalHeight)")
         onFinish?(compose())
     }
 
@@ -97,8 +90,6 @@ final class ScrollingCapture {
             guard self.isRunning || self.finishRequested else { return }
             if let frame {
                 self.append(frame)
-            } else {
-                self.log("frame nil")
             }
             if self.finishRequested { self.complete() }
         }
@@ -121,7 +112,6 @@ final class ScrollingCapture {
               let currentContent = frame.cropping(to: contentRect),
               let fullShift = pixelShift(from: previousContent, to: currentContent) else {
             unmatchedFrames += 1
-            log("unmatched=\(unmatchedFrames)")
             if unmatchedFrames >= 3 { onNeedsOverlap?() }
             return
         }
@@ -130,7 +120,6 @@ final class ScrollingCapture {
 
         guard fullShift > 0 else {
             idleTicks += 1
-            log("shift=0 idle=\(idleTicks)")
             // A pause or an unmatchable animation is not a request to finish.
             // Keep the last accepted frame as the stitching anchor.
             if recoveredOverlap { onUpdate?() }
@@ -138,14 +127,13 @@ final class ScrollingCapture {
         }
 
         idleTicks = 0
-        log("full=\(fullShift) of \(frame.height)")
         guard fullShift > 0, fullShift < currentContent.height - 4 else { return }
 
         if fixedEdges == nil, let firstFrame,
            let initialContent = firstFrame.cropping(to: contentRect) {
             fixedEdges = edges
             slices = [initialContent]
-            log("fixed top=\(edges.top) bottom=\(edges.bottom) left=\(edges.left) right=\(edges.right)")
+            totalHeight = initialContent.height
         }
 
         let cropRect = CGRect(
@@ -160,18 +148,6 @@ final class ScrollingCapture {
         previousFrame = frame
         totalHeight += slice.height
         onUpdate?()
-    }
-
-    private func log(_ message: String) {
-        let url = URL(fileURLWithPath: "/tmp/switchdeck-scroll.log")
-        let line = "\(String(format: "%.3f", Date().timeIntervalSince1970)) \(message)\n"
-        if let handle = try? FileHandle(forWritingTo: url) {
-            handle.seekToEndOfFile()
-            handle.write(Data(line.utf8))
-            try? handle.close()
-        } else {
-            try? line.write(to: url, atomically: true, encoding: .utf8)
-        }
     }
 
     private func compose() -> CGImage? {
@@ -298,6 +274,15 @@ final class ScrollingCapture {
             probe.append(frame)
         }
         return probe.compose()
+    }
+
+    /// Debug: feeds frames and reports the HUD height (`totalHeight`).
+    static func debugReportedHeight(_ frames: [CGImage], direction: Direction = .vertical) -> Int {
+        let probe = ScrollingCapture(region: .zero, direction: direction, capture: { nil })
+        for frame in frames {
+            probe.append(frame)
+        }
+        return probe.totalHeight
     }
 
     /// Debug: reports the detected shift between two frames (full-resolution rows).

@@ -263,7 +263,10 @@ final class ScreenshotCoordinator {
                 guard let self, let id = Self.displayID(for: screen) else { return nil }
                 return self.frozenScreens[id]
             },
-            finishOnSelect: finishOnSelect
+            finishOnSelect: finishOnSelect,
+            captureLive: { [weak self] rect, screen in
+                await self?.captureLiveRegion(rect, screen)
+            }
         )
     }
 
@@ -279,6 +282,17 @@ final class ScreenshotCoordinator {
             frames[id] = image
         }
         return frames
+    }
+
+    /// Always reads the live screen, ignoring any frozen frame.
+    private func captureLiveRegion(_ rect: CGRect, _ screen: NSScreen) async -> CGImage? {
+        guard let displayID = Self.displayID(for: screen) else { return nil }
+        return try? await capture.captureRegion(
+            displayID: displayID,
+            rect: rect,
+            screenFrame: screen.frame,
+            excludingWindowIDs: SelectionController.overlayWindowIDs
+        )
     }
 
     private func captureRegion(_ rect: CGRect, _ screen: NSScreen) async -> CGImage? {

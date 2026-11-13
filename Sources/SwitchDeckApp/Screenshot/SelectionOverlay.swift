@@ -30,7 +30,8 @@ final class SelectionController {
         captureWindows: @escaping ([CaptureWindowTarget], CGRect, NSScreen) async -> CGImage?,
         initialSelection: CGRect? = nil,
         frozen: @escaping (NSScreen) -> CGImage? = { _ in nil },
-        finishOnSelect: CaptureSession.Output? = nil
+        finishOnSelect: CaptureSession.Output? = nil,
+        captureLive: @escaping (CGRect, NSScreen) async -> CGImage? = { _, _ in nil }
     ) {
         guard !isActive else { return }
         isActive = true
@@ -46,7 +47,8 @@ final class SelectionController {
                 session: session,
                 captureWindows: captureWindows,
                 captureBase: captureBase,
-                frozenScreen: frozen(screen)
+                frozenScreen: frozen(screen),
+                captureLive: captureLive
             )
             view.finishOnSelect = finishOnSelect
             view.onCapture = { [weak self] payload, output in
@@ -167,6 +169,9 @@ final class SelectionView: NSView {
     let session: CaptureSession
     private let captureWindows: ([CaptureWindowTarget], CGRect, NSScreen) async -> CGImage?
     private let captureBase: (CGRect, NSScreen) async -> CGImage?
+    /// Always reads the live screen, never `frozenScreen`; scrolling capture
+    /// needs frames that change as the page moves.
+    private let captureLive: (CGRect, NSScreen) async -> CGImage?
     /// A frame taken before the overlay appeared, shown in place of the live
     /// desktop so a menu or tooltip opened during the countdown survives.
     private let frozenScreen: CGImage?
@@ -213,12 +218,14 @@ final class SelectionView: NSView {
         session: CaptureSession,
         captureWindows: @escaping ([CaptureWindowTarget], CGRect, NSScreen) async -> CGImage? = { _, _, _ in nil },
         captureBase: @escaping (CGRect, NSScreen) async -> CGImage?,
-        frozenScreen: CGImage? = nil
+        frozenScreen: CGImage? = nil,
+        captureLive: @escaping (CGRect, NSScreen) async -> CGImage? = { _, _ in nil }
     ) {
         self.screen = screen
         self.session = session
         self.captureWindows = captureWindows
         self.captureBase = captureBase
+        self.captureLive = captureLive
         self.frozenScreen = frozenScreen
         super.init(frame: NSRect(origin: .zero, size: screen.frame.size))
         wantsLayer = true
@@ -256,7 +263,7 @@ final class SelectionView: NSView {
 
         // A timed capture paints the frame taken before the overlay appeared,
         // so menus and tooltips stay on screen while the region is chosen.
-        if let frozenScreen {
+        if let frozenScreen, scrolling == nil {
             NSImage(cgImage: frozenScreen, size: bounds.size).draw(in: bounds)
         }
 
@@ -628,7 +635,7 @@ final class SelectionView: NSView {
         let global = selection.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
         let scroll = ScrollingCapture(region: global, direction: session.scrollingDirection) { [weak self] in
             guard let self else { return nil }
-            return await self.pixels(in: global)
+            return await self.captureLive(global, self.screen)
         }
         scroll.onUpdate = { [weak self] in
             guard let self, let scroll = self.scrolling else { return }
