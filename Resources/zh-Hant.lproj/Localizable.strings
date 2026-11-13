@@ -221,3 +221,10 @@
 "Center" = "置中";
 "Tiled" = "平鋪";
 "Screenshot in %d…" = "%d 秒後截圖…";
+"Language" = "語言";
+"Interface language" = "介面語言";
+"Follows the system until you pick one; a change applies after a relaunch." = "預設跟隨系統；選了之後要重新啟動才會生效。";
+"Relaunch SwitchDeck" = "重新啟動 SwitchDeck";
+"System" = "系統";
+
+"SwitchDeck" = "SwitchDeck";

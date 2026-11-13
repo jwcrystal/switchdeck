@@ -21,12 +21,12 @@ struct SettingsView: View {
 
         var title: String {
             switch self {
-            case .general: return "General"
-            case .customize: return "Customize"
-            case .screenshot: return "Screenshot"
-            case .recording: return "Recording"
-            case .shortcuts: return "Shortcuts"
-            case .about: return "About"
+            case .general: return t("General")
+            case .customize: return t("Customize")
+            case .screenshot: return t("Screenshot")
+            case .recording: return t("Recording")
+            case .shortcuts: return t("Shortcuts")
+            case .about: return t("About")
             }
         }
 
@@ -129,24 +129,26 @@ private struct GeneralPane: View {
     @ObservedObject var permissions: PermissionCenter
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
+    @State private var language = AppLanguage.current
+    @State private var languageChanged = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
                 PaneHeader(
-                    title: "General",
-                    subtitle: "Permissions, startup, and the places macOS keeps them."
+                    title: t("General"),
+                    subtitle: t("Permissions, startup, and the places macOS keeps them.")
                 )
 
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionTitle(text: "Permissions")
+                    SectionTitle(text: t("Permissions"))
 
                     VStack(spacing: 0) {
                         PermissionStatusRow(
-                            title: "Accessibility",
-                            detail: "Lock Keyboard and Screen Clean.",
+                            title: t("Accessibility"),
+                            detail: t("Lock Keyboard and Screen Clean."),
                             granted: permissions.accessibility,
-                            grantTitle: "Grant",
+                            grantTitle: t("Grant"),
                             onGrant: { permissions.requestAccessibility() },
                             onOpenSettings: { permissions.openPrivacyPane("Privacy_Accessibility") }
                         )
@@ -154,10 +156,10 @@ private struct GeneralPane: View {
                         RowDivider()
 
                         PermissionStatusRow(
-                            title: "Screen Recording",
-                            detail: "Screenshot. macOS applies the grant after a relaunch.",
+                            title: t("Screen Recording"),
+                            detail: t("Screenshot. macOS applies the grant after a relaunch."),
                             granted: permissions.screenRecording,
-                            grantTitle: "Grant",
+                            grantTitle: t("Grant"),
                             onGrant: { permissions.requestScreenRecording() },
                             onOpenSettings: { permissions.openPrivacyPane("Privacy_ScreenCapture") }
                         )
@@ -165,10 +167,10 @@ private struct GeneralPane: View {
                         RowDivider()
 
                         PermissionStatusRow(
-                            title: "Automation — System Events",
-                            detail: "Dark Mode.",
+                            title: t("Automation — System Events"),
+                            detail: t("Dark Mode."),
                             granted: permissions.systemEvents == .granted,
-                            grantTitle: permissions.systemEvents == .unknown ? "Check" : "Grant",
+                            grantTitle: permissions.systemEvents == .unknown ? t("Check") : t("Grant"),
                             onGrant: { permissions.requestAutomation(bundleID: "com.apple.systemevents") },
                             onOpenSettings: { permissions.openPrivacyPane("Privacy_Automation") }
                         )
@@ -176,10 +178,10 @@ private struct GeneralPane: View {
                         RowDivider()
 
                         PermissionStatusRow(
-                            title: "Automation — Finder",
-                            detail: "Empty Trash and its item count.",
+                            title: t("Automation — Finder"),
+                            detail: t("Empty Trash and its item count."),
                             granted: permissions.finder == .granted,
-                            grantTitle: permissions.finder == .unknown ? "Check" : "Grant",
+                            grantTitle: permissions.finder == .unknown ? t("Check") : t("Grant"),
                             onGrant: { permissions.requestAutomation(bundleID: "com.apple.finder") },
                             onOpenSettings: { permissions.openPrivacyPane("Privacy_Automation") }
                         )
@@ -187,10 +189,10 @@ private struct GeneralPane: View {
                         RowDivider()
 
                         PermissionStatusRow(
-                            title: "Microphone",
-                            detail: "Recording.",
+                            title: t("Microphone"),
+                            detail: t("Recording."),
                             granted: permissions.microphone == .authorized,
-                            grantTitle: "Allow",
+                            grantTitle: t("Allow"),
                             onGrant: { permissions.requestMicrophone() },
                             onOpenSettings: { permissions.openPrivacyPane("Privacy_Microphone") }
                         )
@@ -212,13 +214,13 @@ private struct GeneralPane: View {
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionTitle(text: "Startup")
+                    SectionTitle(text: t("Startup"))
 
                     HStack(alignment: .center, spacing: 12) {
                         SymbolTile(symbol: "power")
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Launch at login")
-                            Text("Needs SwitchDeck in /Applications.")
+                            Text(t("Launch at login"))
+                            Text(t("Needs SwitchDeck in /Applications."))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -248,6 +250,41 @@ private struct GeneralPane: View {
                             .foregroundStyle(.red)
                     }
                 }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(text: t("Language"))
+
+                    HStack(alignment: .center, spacing: 12) {
+                        SymbolTile(symbol: "globe")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(t("Interface language"))
+                            Text(t("Follows the system until you pick one; a change applies after a relaunch."))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        Picker("", selection: $language) {
+                            ForEach(AppLanguage.allCases) { language in
+                                Text(language.title).tag(language)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(width: 170)
+                        .onChange(of: language) { _, picked in
+                            picked.apply()
+                            languageChanged = true
+                        }
+                    }
+
+                    if languageChanged {
+                        HStack {
+                            Spacer()
+                            Button(t("Relaunch SwitchDeck")) { AppLanguage.relaunch() }
+                        }
+                    }
+                }
             }
             .padding(28)
         }
@@ -270,8 +307,8 @@ private struct CustomizePane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             PaneHeader(
-                title: "Customize",
-                subtitle: "Drag to reorder. Turn a switch off to hide it from the menu."
+                title: t("Customize"),
+                subtitle: t("Drag to reorder. Turn a switch off to hide it from the menu.")
             )
             .padding(.horizontal, 28)
             .padding(.top, 28)
@@ -282,7 +319,7 @@ private struct CustomizePane: View {
                         Image(systemName: "line.3.horizontal")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.tertiary)
-                            .help("Drag to reorder")
+                            .help(t("Drag to reorder"))
 
                         SymbolTile(symbol: item.symbolName)
 
@@ -301,8 +338,8 @@ private struct CustomizePane: View {
                     .padding(.vertical, 4)
                     .contentShape(Rectangle())
                     .contextMenu {
-                        Button("Move Up") { model.move(item.id, by: -1) }
-                        Button("Move Down") { model.move(item.id, by: 1) }
+                        Button(t("Move Up")) { model.move(item.id, by: -1) }
+                        Button(t("Move Down")) { model.move(item.id, by: 1) }
                         Divider()
                         Button(model.config.isEnabled(item.id) ? "Hide from Menu" : "Show in Menu") {
                             model.setEnabled(item.id, !model.config.isEnabled(item.id))
@@ -369,19 +406,19 @@ private struct ScreenshotPane: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
                 PaneHeader(
-                    title: "Screenshot",
-                    subtitle: "The capture shortcut, how it behaves, and what happens to saved images."
+                    title: t("Screenshot"),
+                    subtitle: t("The capture shortcut, how it behaves, and what happens to saved images.")
                 )
 
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionTitle(text: "Shortcut")
+                    SectionTitle(text: t("Shortcut"))
 
                     SettingsCard {
                         HStack(spacing: 12) {
                             SymbolTile(symbol: "camera.viewfinder")
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Capture")
-                                Text("Starts a region, window or full-screen capture from any app.")
+                                Text(t("Capture"))
+                                Text(t("Starts a region, window or full-screen capture from any app."))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -393,23 +430,23 @@ private struct ScreenshotPane: View {
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionTitle(text: "Capture")
+                    SectionTitle(text: t("Capture"))
 
                     SettingsCard {
                         HStack(spacing: 12) {
                             SymbolTile(symbol: "timer")
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Delay")
-                                Text("Counts down before the overlay appears, so a menu or hover state can be caught.")
+                                Text(t("Delay"))
+                                Text(t("Counts down before the overlay appears, so a menu or hover state can be caught."))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
                             Picker("", selection: $delay) {
-                                Text("Off").tag(0)
-                                Text("3 s").tag(3)
-                                Text("5 s").tag(5)
-                                Text("10 s").tag(10)
+                                Text(t("Off")).tag(0)
+                                Text(t("3 s")).tag(3)
+                                Text(t("5 s")).tag(5)
+                                Text(t("10 s")).tag(10)
                             }
                             .pickerStyle(.segmented)
                             .labelsHidden()
@@ -422,8 +459,8 @@ private struct ScreenshotPane: View {
                         HStack(spacing: 12) {
                             SymbolTile(symbol: "eyedropper")
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Colour readout")
-                                Text("Format shown under the pointer; ⌥ still cycles while capturing.")
+                                Text(t("Colour readout"))
+                                Text(t("Format shown under the pointer; ⌥ still cycles while capturing."))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -441,7 +478,7 @@ private struct ScreenshotPane: View {
                     }
 
                     if delay > 0 {
-                        Text("The frame is taken when the countdown ends; a second press of the shortcut cancels it.")
+                        Text(t("The frame is taken when the countdown ends; a second press of the shortcut cancels it."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -449,13 +486,13 @@ private struct ScreenshotPane: View {
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionTitle(text: "Saving")
+                    SectionTitle(text: t("Saving"))
 
                     SettingsCard {
                         HStack(spacing: 12) {
                             SymbolTile(symbol: "folder")
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Save to")
+                                Text(t("Save to"))
                                 Text(abbreviated(folderPath))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -464,7 +501,7 @@ private struct ScreenshotPane: View {
                                     .help(folderPath)
                             }
                             Spacer()
-                            Button("Choose…") { chooseFolder() }
+                            Button(t("Choose…")) { chooseFolder() }
                                 .controlSize(.small)
                             Button {
                                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: folderPath)])
@@ -472,11 +509,11 @@ private struct ScreenshotPane: View {
                                 Image(systemName: "arrow.up.forward.app")
                             }
                             .buttonStyle(.borderless)
-                            .help("Show in Finder")
+                            .help(t("Show in Finder"))
                             if isCustomFolder {
-                                Button("Downloads") { useDownloads() }
+                                Button(t("Downloads")) { useDownloads() }
                                     .controlSize(.small)
-                                    .help("Save to ~/Downloads again")
+                                    .help(t("Save to ~/Downloads again"))
                             }
                         }
                         .padding(.vertical, 6)
@@ -487,13 +524,13 @@ private struct ScreenshotPane: View {
                             HStack(spacing: 12) {
                                 SymbolTile(symbol: "textformat")
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("File name prefix")
-                                    Text("Goes before “Screenshot_<date>_<time>”. Empty drops it.")
+                                    Text(t("File name prefix"))
+                                    Text(t("Goes before “Screenshot_<date>_<time>”. Empty drops it."))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                TextField("SwitchDeck", text: $prefix)
+                                TextField(t("SwitchDeck"), text: $prefix)
                                     .textFieldStyle(.roundedBorder)
                                     .frame(width: 168)
                             }
@@ -512,7 +549,7 @@ private struct ScreenshotPane: View {
                         HStack(spacing: 12) {
                             SymbolTile(symbol: "photo")
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Format")
+                                Text(t("Format"))
                                 Text(selectedFormat.isLossy
                                      ? "Smaller files; the signature text only stays in PNG metadata."
                                      : "Lossless, and keeps the signature text in the file's metadata.")
@@ -536,7 +573,7 @@ private struct ScreenshotPane: View {
 
                             HStack(spacing: 12) {
                                 SymbolTile(symbol: "dial.medium")
-                                Text("Quality")
+                                Text(t("Quality"))
                                 Spacer()
                                 Slider(value: $quality, in: 0.5...1.0)
                                     .frame(width: 168)
@@ -551,14 +588,14 @@ private struct ScreenshotPane: View {
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionTitle(text: "Watermark")
+                    SectionTitle(text: t("Watermark"))
 
                     SettingsCard {
                         HStack(spacing: 12) {
                             SymbolTile(symbol: "signature")
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Add a signature by default")
-                                Text("Each capture still has its own toggle in the editor.")
+                                Text(t("Add a signature by default"))
+                                Text(t("Each capture still has its own toggle in the editor."))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -575,8 +612,8 @@ private struct ScreenshotPane: View {
                         HStack(spacing: 12) {
                             SymbolTile(symbol: "character.cursor.ibeam")
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Text")
-                                Text("Empty uses the macOS full user name.")
+                                Text(t("Text"))
+                                Text(t("Empty uses the macOS full user name."))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -588,7 +625,7 @@ private struct ScreenshotPane: View {
                         .padding(.vertical, 6)
                     }
 
-                    Text("In the editor: Return copies, Space saves, P pins, Esc cancels.")
+                    Text(t("In the editor: Return copies, Space saves, P pins, Esc cancels."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -639,18 +676,18 @@ private struct RecordingPane: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
                 PaneHeader(
-                    title: "Recording",
-                    subtitle: "Where audio goes, and which microphone it hears."
+                    title: t("Recording"),
+                    subtitle: t("Where audio goes, and which microphone it hears.")
                 )
 
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionTitle(text: "Storage")
+                    SectionTitle(text: t("Storage"))
 
                     SettingsCard {
                         HStack(spacing: 12) {
                             SymbolTile(symbol: "folder")
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Save to")
+                                Text(t("Save to"))
                                 Text(abbreviated(folderPath))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -659,7 +696,7 @@ private struct RecordingPane: View {
                                     .help(folderPath)
                             }
                             Spacer()
-                            Button("Choose…") { chooseFolder() }
+                            Button(t("Choose…")) { chooseFolder() }
                                 .controlSize(.small)
                             Button {
                                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: folderPath)])
@@ -667,37 +704,37 @@ private struct RecordingPane: View {
                                 Image(systemName: "arrow.up.forward.app")
                             }
                             .buttonStyle(.borderless)
-                            .help("Show in Finder")
+                            .help(t("Show in Finder"))
                             if !folder.isEmpty {
-                                Button("Music") { folder = "" }
+                                Button(t("Music")) { folder = "" }
                                     .controlSize(.small)
-                                    .help("Use ~/Music/SwitchDeck again")
+                                    .help(t("Use ~/Music/SwitchDeck again"))
                             }
                         }
                         .padding(.vertical, 6)
                     }
 
-                    Text("Recordings are AAC in an .m4a file, named “Recording <date>.m4a”.")
+                    Text(t("Recordings are AAC in an .m4a file, named “Recording <date>.m4a”."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionTitle(text: "Input")
+                    SectionTitle(text: t("Input"))
 
                     SettingsCard {
                         HStack(spacing: 12) {
                             SymbolTile(symbol: "mic")
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Microphone")
-                                Text("Used from the next recording on. A missing device falls back to the system default.")
+                                Text(t("Microphone"))
+                                Text(t("Used from the next recording on. A missing device falls back to the system default."))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
                             Picker("", selection: $inputUID) {
-                                Text("System default").tag("")
+                                Text(t("System default")).tag("")
                                 ForEach(devices) { device in
                                     Text(device.name).tag(device.id)
                                 }
@@ -708,7 +745,7 @@ private struct RecordingPane: View {
                         .padding(.vertical, 6)
                     }
 
-                    Text("AVAudioRecorder only records from the macOS default input, so SwitchDeck switches that default while a recording runs and puts the previous one back when it stops.")
+                    Text(t("AVAudioRecorder only records from the macOS default input, so SwitchDeck switches that default while a recording runs and puts the previous one back when it stops."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -763,7 +800,7 @@ private struct ShortcutField: View {
                     .foregroundStyle(hint == nil ? Color.secondary : Color.orange)
                 ProgressView()
                     .controlSize(.small)
-                Button("Cancel", action: stop)
+                Button(t("Cancel"), action: stop)
                     .buttonStyle(.borderless)
                     .font(.callout)
             } else if let binding = model.config.hotkey(for: id) {
@@ -772,7 +809,7 @@ private struct ShortcutField: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
                     .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                Button("Change", action: start)
+                Button(t("Change"), action: start)
                     .buttonStyle(.borderless)
                     .font(.callout)
                 Button {
@@ -782,9 +819,9 @@ private struct ShortcutField: View {
                         .foregroundStyle(.quaternary)
                 }
                 .buttonStyle(.borderless)
-                .help("Clear shortcut")
+                .help(t("Clear shortcut"))
             } else {
-                Button("Record", action: start)
+                Button(t("Record"), action: start)
                     .controlSize(.small)
             }
         }
@@ -830,8 +867,8 @@ private struct ShortcutsPane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             PaneHeader(
-                title: "Shortcuts",
-                subtitle: "Record a shortcut to toggle a switch from any app. Esc cancels, Delete clears."
+                title: t("Shortcuts"),
+                subtitle: t("Record a shortcut to toggle a switch from any app. Esc cancels, Delete clears.")
             )
             .padding(.horizontal, 28)
             .padding(.top, 28)
@@ -854,7 +891,7 @@ private struct ShortcutsPane: View {
             .scrollContentBackground(.hidden)
             .padding(.horizontal, 12)
 
-            Text("Screenshot’s shortcut lives in Settings › Screenshot, next to where its images go.")
+            Text(t("Screenshot’s shortcut lives in Settings › Screenshot, next to where its images go."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 28)
@@ -879,7 +916,7 @@ private struct AboutPane: View {
                 .resizable()
                 .frame(width: 88, height: 88)
 
-            Text("SwitchDeck")
+            Text(t("SwitchDeck"))
                 .font(.system(size: 22, weight: .semibold))
 
             Text(tf("Version %@", Self.version))
@@ -893,8 +930,8 @@ private struct AboutPane: View {
                 .padding(.top, 4)
 
             HStack(spacing: 18) {
-                Link("Repository", destination: URL(string: "https://github.com/jwcrystal/switchdeck")!)
-                Link("Report an Issue", destination: URL(string: "https://github.com/jwcrystal/switchdeck/issues")!)
+                Link(t("Repository"), destination: URL(string: "https://github.com/jwcrystal/switchdeck")!)
+                Link(t("Report an Issue"), destination: URL(string: "https://github.com/jwcrystal/switchdeck/issues")!)
             }
             .font(.callout)
             .padding(.top, 6)
