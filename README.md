@@ -137,7 +137,7 @@ Distribution is source-only for now: build it yourself, or notarize your own Dev
 
 ## Localisation
 
-The interface ships in English and Traditional Chinese (Taiwan). English wording in the source doubles as the key; `Resources/zh-Hant.lproj/Localizable.strings` holds the translations, and `scripts/build-app.sh` copies every `.lproj` into the bundle. `./scripts/check-localizations.sh` fails when a `t()` key has no entry or a translation drops a `%@`/`%d` placeholder. A language with no file simply shows English.
+The interface ships in English and Traditional Chinese (Taiwan). English wording in the source doubles as the key; `Resources/zh-Hant.lproj/Localizable.strings` holds the translations, and `scripts/build-app.sh` copies every `.lproj` into the bundle. `./scripts/check-localizations.sh` fails when a `t()` key has no entry or a translation drops a `%@`/`%d` placeholder. A language with no file simply shows English. Settings › General › Language overrides the choice for the app itself — system, English or 繁體中文 — and offers a relaunch, since macOS resolves a bundle's language once at launch.
 
 ## Similar projects
 
