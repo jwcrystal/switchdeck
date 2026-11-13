@@ -2,6 +2,8 @@
 
 **English** · [繁體中文](README.zh-TW.md)
 
+[![CI](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml)
+
 A macOS menu-bar app with sixteen one-click system switches and a built-in screenshot editor. Native Swift on AppKit and SwiftUI, built from source with SwiftPM, no third-party dependencies, no App Store sandbox.
 
 <p align="center"><img src="docs/images/menu.png" width="360" alt="The SwitchDeck menu: switch rows with their live state, then Permissions, Settings and Quit"></p>
@@ -53,7 +55,7 @@ Releases are built by CI and signed ad-hoc, so macOS blocks the first launch. Mo
 | Empty Trash | Finder AppleScript: `count items in trash`, `empty trash` | Needs Automation; direct `~/.Trash` reads are blocked by TCC |
 | Empty Pasteboard | `NSPasteboard.clearContents()` | |
 | Recording | `AVAudioRecorder` to the folder chosen in Settings › Recording (default `~/Music/SwitchDeck`), with a microphone picker; elapsed time in the menu | Needs Microphone |
-| Screenshot | ScreenCaptureKit region/window/full-screen capture; borderless editor with rectangle, ellipse, line, arrow, pen, highlighter, text, numbering, mosaic and blur; copy, save, pin | Needs Screen Recording; scrolling capture is paused |
+| Screenshot | ScreenCaptureKit region, single-window, multi-window and full-screen capture; borderless editor with rectangle, ellipse, line, arrow, pen, highlighter, text, numbering, mosaic and blur; copy, save, pin | Needs Screen Recording; scrolling capture is paused |
 | Quit All Apps | `NSRunningApplication.terminate()`, skips Finder and SwitchDeck | Unsaved work still prompts |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, counts removable volumes | |
 
@@ -69,7 +71,7 @@ Settings › Recording picks the folder and the microphone. `AVAudioRecorder` on
 
 - `⌥E` starts a capture (installed once as a default; change it in Settings › Screenshot).
 - Settings › Screenshot also holds a 0 / 3 / 5 / 10 s delay, the save folder, the file-name prefix, PNG / JPEG / HEIC with a quality slider, the signature text and whether a new capture starts with it, and the starting format for the colour readout. A delayed capture counts down in a small pill and freezes the screen when the clock ends, so a menu or hover state opened during the countdown survives; pressing the shortcut again cancels it.
-- Dragging a region enters editing **in place**: the selection stays on screen, everything outside dims, and the toolbar appears under the region — no second window. Clicking a window edits at that window's frame; `F` selects the whole screen; `R` restores the last region.
+- Dragging a region enters editing **in place**: the selection stays on screen, everything outside dims, and the toolbar appears under the region — no second window. Clicking a window captures that window alone, with its shadow, instead of whatever happens to be on top of it; `⇧`-click windows to pick several, then `Return` to edit the composed set; `F` selects the whole screen; `R` restores the last region.
 - The default tool is Select. With a tool active, dragging inside draws: rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (S/M/L, optional bubble), numbered markers, mosaic and blur.
 - The region keeps its eight handles while editing, so it can still be resized; while dragging, the live screen shows through and the frozen image is refreshed on release.
 - While selecting, the colour under the pointer is shown with its value and pixel coordinates; `⌥` cycles HEX / RGB / HSL (the starting format is set in Settings › Screenshot), and `C` copies the value, leaves capture mode and shows a short "Copied …" toast. The readout is hidden once editing starts.

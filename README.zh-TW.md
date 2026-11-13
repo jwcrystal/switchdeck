@@ -2,6 +2,8 @@
 
 [English](README.md) · **繁體中文**
 
+[![CI](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml)
+
 macOS 選單列小工具：16 個一鍵系統開關，加上一個內建的截圖編輯器。原生 Swift（AppKit + SwiftUI），以 SwiftPM 從原始碼建置，沒有第三方相依，沒有 App Store 沙盒。
 
 <p align="center"><img src="docs/images/menu.png" width="360" alt="SwitchDeck 選單：每個開關附即時狀態，下方是權限、設定與結束"></p>
@@ -53,7 +55,7 @@ release 由 CI 建置、ad-hoc 簽章，所以 macOS 會擋第一次啟動。把
 | 清空垃圾桶 | Finder AppleScript：`count items in trash`、`empty trash` | 需要自動化權限；TCC 會擋掉直接讀 `~/.Trash` |
 | 清空剪貼簿 | `NSPasteboard.clearContents()` | |
 | 錄音 | `AVAudioRecorder` 存到設定 › 錄音選的資料夾（預設 `~/Music/SwitchDeck`），可選麥克風；選單顯示已錄時間 | 需要麥克風權限 |
-| 截圖 | `ScreenCaptureKit` 擷取區域／視窗／全螢幕；無邊框就地編輯器，支援矩形、橢圓、直線、箭頭、畫筆、螢光筆、文字、編號、馬賽克與模糊；延遲擷取、HEX／RGB／HSL 讀值、PNG／JPEG／HEIC 儲存；可複製、儲存、釘選 | 需要螢幕錄製權限；滾動截圖暫停 |
+| 截圖 | `ScreenCaptureKit` 擷取區域／單一視窗／多視窗合成／全螢幕；無邊框就地編輯器，支援矩形、橢圓、直線、箭頭、畫筆、螢光筆、文字、編號、馬賽克與模糊；延遲擷取、HEX／RGB／HSL 讀值、PNG／JPEG／HEIC 儲存；可複製、儲存、釘選 | 需要螢幕錄製權限；滾動截圖暫停 |
 | 結束所有 App | `NSRunningApplication.terminate()`，跳過 Finder 與 SwitchDeck | 未儲存的工作仍會跳出詢問 |
 | 退出磁碟 | `NSWorkspace.unmountAndEjectDevice`，計數可卸除的卷宗 | |
 
@@ -69,7 +71,7 @@ release 由 CI 建置、ad-hoc 簽章，所以 macOS 會擋第一次啟動。把
 
 - `⌥E` 開始擷取（預設安裝一次；可在設定 › 截圖更改）。
 - 設定 › 截圖還放著 0／3／5／10 秒延遲、儲存資料夾、檔名前綴、PNG／JPEG／HEIC 與品質滑桿、簽名文字與「新擷取預設帶簽名」，以及取色讀值的起始格式。延遲擷取會以小膠囊倒數，時間到才凍結畫面，所以倒數期間打開的選單或滑鼠停留狀態會留下來；再按一次快速鍵即取消。
-- 拖出區域後**就地**進入編輯：選取範圍留在畫面上、範圍外變暗、工具列出現在選取區下方，不開第二個視窗。點視窗即以該視窗框為範圍編輯；`F` 選整個螢幕；`R` 還原上次的區域。
+- 拖出區域後**就地**進入編輯：選取範圍留在畫面上、範圍外變暗、工具列出現在選取區下方，不開第二個視窗。點視窗只擷取該視窗本身（含陰影），不會把壓在上面的其他視窗一起拍進去；`⇧` 點多個視窗可把它們依螢幕上的相對位置合成一張，再按 `Return` 編輯；`F` 選整個螢幕；`R` 還原上次的區域。
 - 預設工具是「選取」。選了工具後在範圍內拖曳即可畫：矩形、橢圓、直線、箭頭（直線／曲線／折線）、手繪、螢光筆、文字（S／M／L，可加氣泡）、編號標記、馬賽克與模糊。
 - 編輯期間選取區仍保留八個控制點，可以繼續調整大小；拖曳時畫面是即時的，放開後才更新凍結的影像。
 - 選取時顯示指標下的顏色值與像素座標；`⌥` 在 HEX／RGB／HSL 之間切換（起始格式在設定 › 截圖），`C` 複製色值、離開擷取模式並顯示短暫的「已複製…」提示。開始編輯後不再顯示。
