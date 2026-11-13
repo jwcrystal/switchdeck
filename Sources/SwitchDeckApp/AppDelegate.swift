@@ -4,7 +4,10 @@ import SwitchKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let model = AppModel()
+    private let screenshot = ScreenshotCoordinator()
+    private lazy var model: AppModel = {
+        AppModel(catalog: AppCatalog.make(screenshot: screenshot))
+    }()
     private let permissions = PermissionCenter()
     private var menuController: MenuController?
     private var settingsWindow: NSWindow?
@@ -50,6 +53,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--show-menu") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak controller] in
                 controller?.openMenuForDebug()
+            }
+        }
+
+        if CommandLine.arguments.contains("--selection-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginDemo()
+            }
+        }
+
+        if CommandLine.arguments.contains("--scroll-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginScrollingDemo()
+            }
+        }
+
+        if CommandLine.arguments.contains("--watermark-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginWatermarkDemo()
+            }
+        }
+
+        if CommandLine.arguments.contains("--save-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginDemoSave()
+            }
+        }
+
+        if CommandLine.arguments.contains("--copy-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginDemoCopy()
+            }
+        }
+
+        if CommandLine.arguments.contains("--capture-compare") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginDemo()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                self?.screenshot.compareCaptures()
             }
         }
     }

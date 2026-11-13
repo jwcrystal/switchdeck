@@ -38,6 +38,26 @@ enum SwitchDeckApp {
             return
         }
 
+        if arguments.contains("--capture-test") {
+            Dump.captureTest()
+            return
+        }
+
+        if arguments.contains("--window-check") {
+            Dump.windowCheck()
+            return
+        }
+
+        if arguments.contains("--scroll-test") {
+            Dump.scrollTest()
+            return
+        }
+
+        if arguments.contains("--region-bench") {
+            Dump.regionBench()
+            return
+        }
+
         let application = NSApplication.shared
         let delegate = AppDelegate()
         application.delegate = delegate
@@ -49,8 +69,9 @@ enum SwitchDeckApp {
 /// Prints every switch with its current state. Used by `scripts/smoke.sh` and
 /// helpful when a switch misbehaves: `build/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump`.
 enum Dump {
+    @MainActor
     static func printAll() {
-        for item in SwitchCatalog.standard().items {
+        for item in AppCatalog.make(screenshot: ScreenshotCoordinator()).items {
             print(line(for: item))
         }
     }
@@ -59,7 +80,7 @@ enum Dump {
     /// Toggles flip state, so the printed state afterwards shows the result.
     @MainActor
     static func run(id: String) {
-        guard let item = SwitchCatalog.standard().item(id: id) else {
+        guard let item = AppCatalog.make(screenshot: ScreenshotCoordinator()).item(id: id) else {
             FileHandle.standardError.write(Data("Unknown switch: \(id)\n".utf8))
             exit(2)
         }
@@ -86,7 +107,7 @@ enum Dump {
     /// switches being absent. Useful when the menu looks wrong.
     @MainActor
     static func printMenu() {
-        let model = AppModel()
+        let model = AppModel(catalog: AppCatalog.make(screenshot: ScreenshotCoordinator()))
         var seen = Set<String>()
         let items = model.menuItems.filter { seen.insert($0.id).inserted }
 
@@ -166,6 +187,149 @@ enum Dump {
             atomically: true,
             encoding: .utf8
         )
+    }
+
+    /// Captures the main display to /tmp and writes the outcome next to it.
+    /// Verifies ScreenCaptureKit and the Screen Recording grant without any UI.
+    @MainActor
+    static func captureTest() {
+        let service = ScreenCaptureService()
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        let displayID = (screen.deviceDescription[key] as? NSNumber)?.uint32Value ?? CGMainDisplayID()
+
+        func write(_ text: String) {
+            print(text)
+            try? text.write(
+                to: URL(fileURLWithPath: "/tmp/switchdeck-capture.txt"),
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+
+        Task {
+            do {
+                let image = try await service.captureDisplay(displayID: displayID)
+                let rep = NSBitmapImageRep(cgImage: image)
+                if let data = rep.representation(using: .png, properties: [:]) {
+                    try data.write(to: URL(fileURLWithPath: "/tmp/switchdeck-capture.png"))
+                }
+                write("ok \(image.width)x\(image.height)")
+            } catch {
+                write("failed \(error.localizedDescription)")
+            }
+            exit(0)
+        }
+
+        RunLoop.main.run()
+    }
+
+    /// Debug: feeds two synthetic frames with a known 40 px scroll to the
+    /// stitching matcher and prints what it detected.
+    @MainActor
+    static func scrollTest() {
+        func frame(offset: Int) -> CGImage? {
+            let width = 400, height = 300
+            guard let context = CGContext(
+                data: nil, width: width, height: height,
+                bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return nil }
+
+            // Top-left drawing so the offsets read like image rows.
+            context.translateBy(x: 0, y: CGFloat(height))
+            context.scaleBy(x: 1, y: -1)
+
+            context.setFillColor(NSColor.white.cgColor)
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            context.setFillColor(NSColor.darkGray.cgColor)
+            for index in 0..<12 {
+                let y = 80 + index * 18 + offset
+                context.fill(CGRect(x: 20, y: y, width: 360, height: 7))
+            }
+            return context.makeImage()
+        }
+
+        guard let a = frame(offset: 0), let b = frame(offset: -40) else {
+            print("failed to build frames")
+            return
+        }
+        let shift = ScrollingCapture.detectShift(from: a, to: b)
+        let height = ScrollingCapture.debugStitch([a, b])
+        print("detected shift: \(shift) (expected 40, content moved up)")
+        print("stitched height: \(height) (expected 340)")
+    }
+
+    /// Debug: times region captures, the frame source for scrolling capture.
+    @MainActor
+    static func regionBench() {
+        let service = ScreenCaptureService()
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        let displayID = (screen.deviceDescription[key] as? NSNumber)?.uint32Value ?? CGMainDisplayID()
+        let rect = CGRect(
+            x: screen.frame.midX - 300,
+            y: screen.frame.midY - 200,
+            width: 600,
+            height: 400
+        )
+
+        Task {
+            // First call warms the shareable-content cache; time the rest.
+            _ = try? await service.captureRegion(
+                displayID: displayID, rect: rect, screenFrame: screen.frame, excludingOwnApp: true
+            )
+
+            var size = CGSize.zero
+            var failures = 0
+            let start = Date()
+            for _ in 0..<10 {
+                if let image = try? await service.captureRegion(
+                    displayID: displayID, rect: rect, screenFrame: screen.frame, excludingOwnApp: true
+                ) {
+                    size = CGSize(width: image.width, height: image.height)
+                } else {
+                    failures += 1
+                }
+            }
+            let ms = Date().timeIntervalSince(start) * 100
+            print("region \(Int(rect.width))x\(Int(rect.height)) pts → \(Int(size.width))x\(Int(size.height)) px, \(String(format: "%.0f", ms)) ms/frame, \(failures) failures")
+            exit(0)
+        }
+
+        RunLoop.main.run()
+    }
+
+    /// Prints which normal window sits under the mouse, using the same
+    /// coordinate conversion as the selection overlay.
+    @MainActor
+    static func windowCheck() {
+        let mouse = NSEvent.mouseLocation
+        guard let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero }) else {
+            print("no primary screen")
+            return
+        }
+        let topLeft = CGPoint(x: mouse.x, y: primary.frame.height - mouse.y)
+        print("mouse=\(mouse) cg=\(topLeft)")
+
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+
+        for info in list {
+            guard let pid = info[kCGWindowOwnerPID as String] as? pid_t, pid != ownPID else { continue }
+            guard (info[kCGWindowLayer as String] as? Int) == 0 else { continue }
+            guard let dict = info[kCGWindowBounds as String] as? NSDictionary,
+                  let rect = CGRect(dictionaryRepresentation: dict)
+            else { continue }
+            guard rect.contains(topLeft) else { continue }
+
+            let owner = info[kCGWindowOwnerName as String] as? String ?? "?"
+            let id = info[kCGWindowNumber as String] ?? "?"
+            print("hit owner=\(owner) id=\(id) pid=\(pid) bounds=\(rect)")
+            return
+        }
+        print("no window at cursor")
     }
 
     /// Registers a probe shortcut through the real Carbon path and reports the

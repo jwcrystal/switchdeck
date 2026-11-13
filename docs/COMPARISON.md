@@ -3,13 +3,13 @@
 A factual comparison of SwitchDeck against the two apps it borrows its shape from.
 Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 
-- **SwitchDeck** — this repository. A locally built, unsigned-for-distribution menu-bar app with 14 switches.
+- **SwitchDeck** — this repository. A locally built, unsigned-for-distribution menu-bar app with 16 switches.
 - **AnySwitch** — App Store app by anyfun.studio, free with a US$4.99 unlock. Last release 3.8.8 (September 2023). Sandboxed, drives the system through ~20 precompiled AppleScripts.
 - **OnlySwitch** — MIT-licensed open-source app (jacklandrin/OnlySwitch, ~6k stars, commits through November 2026). Much broader feature set: switches, tabs, widgets, schedules, remote control.
 
 ## What SwitchDeck has
 
-**Switches (15)**
+**Switches (16)**
 
 | Switch | Implementation |
 |---|---|
@@ -25,6 +25,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Empty Trash | Finder AppleScript, top-level item count |
 | Empty Pasteboard | `NSPasteboard` |
 | Recording | `AVAudioRecorder` to `~/Music/SwitchDeck` |
+| Screenshot | ScreenCaptureKit; in-place editor over the selection (rect, ellipse, line, arrow styles, pen, highlighter, text, number, mosaic, blur); copy/save/pin; scrolling capture paused |
 | Quit All Apps | `NSRunningApplication.terminate()` |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, all removable volumes |
 
@@ -37,7 +38,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 - One-time Setup window for Accessibility, System Events, Finder and Microphone, with live status and per-permission "Grant" / "Settings" actions.
 - Single-instance lock, ad-hoc-free local signing identity that keeps TCC grants across rebuilds.
 - Diagnostics: `--dump`, `--run <id>`, `--menu`, `--hotkeys`, `--permissions`, `--probe-automation`.
-- 17 unit tests over config, ordering, hotkeys and Trash counting.
+- 84 unit tests: SwitchKit config, ordering, hotkeys and Trash counting, plus screenshot editing, annotation history and scrolling-engine maths.
 
 ## Comparison
 
@@ -46,7 +47,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Distribution | Built locally from source | Mac App Store | GitHub (MIT), plus releases |
 | Price | Free | Free + US$4.99 unlock | Free |
 | Menu shape | Native `NSMenu` list + submenus | `NSMenu` list (same shape) | Popover panel with a grid and tabs |
-| Switch count | 15 | ~20 | ~35 plus optional tool tabs |
+| Switch count | 16 | ~20 | ~35 plus optional tool tabs |
 | Global shortcuts | Carbon + recorder + conflict report | Yes | Yes, plus macOS Shortcuts import |
 | Ordering / hiding | Drag to reorder | Yes, in its Customize page | Yes, with categories and search |
 | Permission flow | One Setup window, live status | Guided prompts | Guided prompts |
@@ -56,7 +57,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Extensibility | Edit Swift sources | Closed | Modular; schedules, Shortcuts, remote |
 | Localisation | English only | 12+ languages | 20+ languages |
 | Maintained | By whoever builds it | No release since Sep 2023 | Active |
-| Tests / CLI diagnostics | 17 tests, 6 debug modes | None known | Tests for some modules |
+| Tests / CLI diagnostics | 84 tests, 6 debug modes | None known | Tests for some modules |
 | Licence | No LICENSE file yet | Proprietary | MIT |
 
 ## Where SwitchDeck wins
@@ -68,7 +69,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 ## Where SwitchDeck loses
 
 - No localisation, no auto-update, no Developer ID signature, no App Store distribution.
-- Far fewer switches: no Do Not Disturb / Focus, Screenshot, Screen Saver, Resolution, Low Power Mode, Bluetooth, AirPods, radio, music controls.
+- Far fewer switches: no Do Not Disturb / Focus, Screen Saver, Resolution, Low Power Mode, Bluetooth, AirPods, radio, music controls.
 - None of OnlySwitch's scheduling, widgets, iPhone remote, or Shortcuts import.
 
 ## Candidate additions
@@ -76,7 +77,6 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 Chosen to keep the "one row, one action" shape and avoid new permissions:
 
 - **Do Not Disturb** — no public API; either run a user Shortcut or script the menu bar. The fragile one.
-- **Screenshot** — `screencapture -i`, needs Screen Recording.
 - **Hide Windows** — `NSRunningApplication.hide()`, safer than quitting everything.
 
 ## Adjacent tools
@@ -90,7 +90,7 @@ Four other ways people get the same job done. None of them is a switch list in t
 | Raycast | Keyboard commands and extensions | Wins for people who never open a menu |
 | Amphetamine | One job, done deeply | Keep Awake with schedules and triggers |
 
-Deliberately left out: menu-bar managers (Ice, Bartender), cleaners (CleanMyMac, OnyX) and screenshot tools (CleanShot). They overlap on at most one switch and would blur the comparison; revisit them if SwitchDeck ever grows "Hide Menu Bar Icons" or "Screenshot".
+Deliberately left out: menu-bar managers (Ice, Bartender), cleaners (CleanMyMac, OnyX) and screenshot tools (CleanShot). They overlap on at most one switch and would blur the comparison; revisit them if SwitchDeck ever grows "Hide Menu Bar Icons".
 
 ## Sources
 

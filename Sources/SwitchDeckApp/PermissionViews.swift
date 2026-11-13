@@ -105,6 +105,17 @@ struct SetupView: View {
                 Divider()
 
                 PermissionStatusRow(
+                    title: "Screen Recording",
+                    detail: "Screenshot. macOS applies the grant after a relaunch.",
+                    granted: permissions.screenRecording,
+                    grantTitle: "Grant",
+                    onGrant: { permissions.requestScreenRecording() },
+                    onOpenSettings: { permissions.openPrivacyPane("Privacy_ScreenCapture") }
+                )
+
+                Divider()
+
+                PermissionStatusRow(
                     title: "Microphone",
                     detail: "Recording.",
                     granted: permissions.microphone == .authorized,

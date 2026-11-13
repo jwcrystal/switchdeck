@@ -17,7 +17,7 @@ Grant there once and the menu never prompts again; using a switch with a missing
 
 ## Status
 
-Milestones M1–M4 are done: fifteen switches, the menu-bar UI, global shortcuts with an inline recorder, a setup window for permissions, an app icon, and a stable local signature.
+Milestones M1–M4 are done: sixteen switches, the menu-bar UI, global shortcuts with an inline recorder, a setup window for permissions, an app icon, and a stable local signature.
 
 | Switch | How it works | Note |
 |---|---|---|
@@ -34,11 +34,28 @@ Milestones M1–M4 are done: fifteen switches, the menu-bar UI, global shortcuts
 | Empty Trash | Finder AppleScript: `count items in trash`, `empty trash` | Needs Automation; direct `~/.Trash` reads are blocked by TCC |
 | Empty Pasteboard | `NSPasteboard.clearContents()` | |
 | Recording | `AVAudioRecorder` to `~/Music/SwitchDeck`, elapsed time in the menu | Needs Microphone |
+| Screenshot | ScreenCaptureKit region/window/full-screen capture; borderless editor with rectangle, ellipse, line, arrow, pen, highlighter, text, numbering, mosaic and blur; copy, save, pin | Needs Screen Recording; scrolling capture is paused |
 | Quit All Apps | `NSRunningApplication.terminate()`, skips Finder and SwitchDeck | Unsaved work still prompts |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, counts removable volumes | |
 
 Settings › Customize reorders and hides switches; the choice is stored in
 `~/Library/Application Support/SwitchDeck/config.json`. Rows are dragged into place; a context menu offers Move Up / Move Down / Show in Menu for keyboard use.
+
+## Screenshot
+
+- `⌥E` starts a capture (installed once as a default; change it in Settings › Shortcuts).
+- Dragging a region enters editing **in place**: the selection stays on screen, everything outside dims, and the toolbar appears under the region — no second window. Clicking a window edits at that window's frame; `F` selects the whole screen; `R` restores the last region.
+- The default tool is Select. With a tool active, dragging inside draws:
+  -  rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (S/M/L, optional bubble), numbered markers, mosaic and blur.
+- The region keeps its eight handles while editing, so it can still be resized; while dragging, the live screen shows through and the frozen image is refreshed on release.
+- While selecting, the colour under the pointer is shown with its value and pixel coordinates; `⌥` cycles HEX / RGB / HSL, and `C` copies the value, leaves capture mode and shows a short "Copied …" toast. The readout is hidden once editing starts.
+- The region is frozen the moment editing starts, so mosaic and blur preview exactly what gets saved.
+- Main tools stay on one row. Selecting a drawing tool reveals a compact horizontal icon row immediately below it: color, arrow paths (including an S curve), outline/hatched/solid shapes, solid/dashed/dotted strokes, marker shape, text sizes/bubble and sliders for stroke width, pixel-effect strength or highlighter opacity. Clicking the active tool returns to Select and closes the options row.
+- With Select, clicking an existing mark edits that object instead of the next one: the options row shows its own colour, stroke, fill, arrow path, text size/bubble or marker shape, changes apply live, and the same values become the default for new marks. Dragging and the eight handles still move or resize it.
+- The signature button adds a watermark (the macOS full user name); its popover edits the text, colour, position (four corners, centre or a tiled pattern), size (S/M/L), angle (0/30/45°) and opacity. It is clipped to the capture, so a rotated or tiled watermark never spills outside the selection. The eye-slash button hides it from the image but keeps the text in the PNG metadata.
+- Scrolling capture is paused in this build: the toolbar shows no vertical/horizontal entry, the capture callback and debug route refuse to start it, and the stitching engine stays in the source but cannot be reached from the app. Normal region, window and full-screen capture, annotation, copy, save and pin are unaffected.
+- `Enter` copies, `Space` saves a PNG straight into ~/Downloads as `SwitchDeck Screenshot <date>.png` (folder and prefix are the UserDefaults keys that Settings will expose), `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo edits, `Esc` closes.
+- Pinned images: the corner × or `Esc` closes, scroll resizes, `⌘`-scroll changes opacity, right-click has Copy / 50% Opacity / Close.
 
 ## Global shortcuts (M2)
 
@@ -56,7 +73,7 @@ Settings › Shortcuts records one shortcut per switch:
 
 ```bash
 cd ~/dev/switchdeck
-swift test                      # 8 tests, no UI needed
+swift test                      # 84 tests, no UI needed
 ./scripts/build-app.sh          # builds build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -71,6 +88,7 @@ build/SwitchDeck.app/Contents/MacOS/SwitchDeck --run keepAwake # run one switch,
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --hotkeys       # register a probe shortcut, report conflicts
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --permissions   # what the app sees for each permission
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --menu          # the menu as it is built
+build/SwitchDeck.app/Contents/MacOS/SwitchDeck --capture-test  # capture the main display, report the result
 ```
 
 ## Layout
@@ -99,6 +117,7 @@ macOS TCC cannot be pre-granted. The first time a switch needs something, macOS 
 - **Automation** — Dark Mode (System Events) and Empty Trash (Finder). Also listed in Settings › General.
 - **Accessibility** — Lock Keyboard and Screen Clean. The first attempt shows the macOS prompt; the switch then explains how to grant it.
 - **Microphone** — Recording. macOS asks the first time you start one.
+- **Screen Recording** — Screenshot. macOS applies the grant after a relaunch.
 
 ### Why rebuilds used to lose permissions
 
@@ -116,7 +135,8 @@ The build is signed with a local self-signed identity (see Permissions below). L
 
 - **M1–M3 — done** — menu, switches, settings, global shortcuts, the hard system integrations.
 - **M4 — done** — setup window and permission status, app icon, stable local signing, About pane.
-- **Later** — drag reordering in Customize, live menu updates while recording, localisation.
+- **Screenshot follow-ups** — OCR, additional export formats and drag-out to Finder. Scrolling capture stays paused until its stitching problems are fixed.
+- **Later** — live menu updates while recording, localisation.
 
 ## Why not copy AnySwitch's scripts
 

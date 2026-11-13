@@ -12,5 +12,6 @@ let package = Package(
         .target(name: "SwitchKit"),
         .executableTarget(name: "SwitchDeckApp", dependencies: ["SwitchKit"]),
         .testTarget(name: "SwitchKitTests", dependencies: ["SwitchKit"]),
+        .testTarget(name: "ScreenshotTests", dependencies: ["SwitchDeckApp"]),
     ]
 )

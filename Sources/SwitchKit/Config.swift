@@ -12,17 +12,21 @@ public struct SwitchDeckConfig: Codable, Equatable {
     /// Set once the user closes the setup window, so it only opens by itself
     /// on a fresh install.
     public var didCompleteSetup: Bool
+    /// ⌥E is installed once as the default screenshot shortcut.
+    public var didSeedScreenshotShortcut: Bool
 
     public init(
         order: [String] = [],
         disabled: Set<String> = [],
         hotkeys: [String: HotkeyBinding] = [:],
-        didCompleteSetup: Bool = false
+        didCompleteSetup: Bool = false,
+        didSeedScreenshotShortcut: Bool = false
     ) {
         self.order = order
         self.disabled = disabled
         self.hotkeys = hotkeys
         self.didCompleteSetup = didCompleteSetup
+        self.didSeedScreenshotShortcut = didSeedScreenshotShortcut
     }
 
     // Decoded field by field so a config written by an older build still loads.
@@ -32,6 +36,7 @@ public struct SwitchDeckConfig: Codable, Equatable {
         disabled = try container.decodeIfPresent(Set<String>.self, forKey: .disabled) ?? []
         hotkeys = try container.decodeIfPresent([String: HotkeyBinding].self, forKey: .hotkeys) ?? [:]
         didCompleteSetup = try container.decodeIfPresent(Bool.self, forKey: .didCompleteSetup) ?? false
+        didSeedScreenshotShortcut = try container.decodeIfPresent(Bool.self, forKey: .didSeedScreenshotShortcut) ?? false
     }
 
     /// Applies the saved order, then slips ids the config has never seen in next
