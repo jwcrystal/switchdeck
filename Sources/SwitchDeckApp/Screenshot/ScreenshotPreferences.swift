@@ -18,6 +18,14 @@ enum ScreenshotPreferences {
     static let colorFormatKey = "ScreenshotColorFormat"
     static let watermarkTextKey = "ScreenshotWatermarkText"
     static let watermarkDefaultKey = "ScreenshotWatermarkDefault"
+    static let silentRecognitionKey = "TextRecognitionSilent"
+
+    /// Text recognition copies straight to the clipboard and shows a toast
+    /// instead of opening the result window. Off by default.
+    static var silentRecognition: Bool {
+        get { UserDefaults.standard.bool(forKey: silentRecognitionKey) }
+        set { UserDefaults.standard.set(newValue, forKey: silentRecognitionKey) }
+    }
 
     // MARK: - Storage
 

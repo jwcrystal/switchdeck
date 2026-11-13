@@ -7,7 +7,7 @@
 [![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#requirements)
 [![License](https://img.shields.io/github/license/jwcrystal/switchdeck)](LICENSE)
 
-平常要翻系統設定、或打開終端機下指令才改得到的 16 個 Mac 設定：顯示隱藏檔、保持清醒、夜覽、深色模式、擦鍵盤用的鍵盤鎖、退出磁碟……全都放在選單列，點一下就切換。另外附一個截圖工具，拍完直接在原地標註，不用再開第二個視窗。
+平常要翻系統設定、或打開終端機下指令才改得到的 17 個 Mac 設定：顯示隱藏檔、保持清醒、夜覽、深色模式、擦鍵盤用的鍵盤鎖、退出磁碟……全都放在選單列，點一下就切換。另外附一個截圖工具，拍完直接在原地標註，不用再開第二個視窗；也能在本機辨識文字和 QR 碼。
 
 原生 Swift（AppKit + SwiftUI），沒有第三方相依，免費、MIT 授權。
 
@@ -41,7 +41,7 @@
 
 ```bash
 git clone https://github.com/jwcrystal/switchdeck.git && cd switchdeck
-swift test                      # 115 個測試，不需要 UI
+swift test                      # 125 個測試，不需要 UI
 ./scripts/build-app.sh          # 產出 build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -68,6 +68,7 @@ open build/SwitchDeck.app
 | 清空剪貼簿 | 清掉剪貼簿內容 | |
 | 錄音 | 用選定的麥克風錄音；選單顯示已錄時間 | 麥克風 |
 | 截圖 | 區域、視窗、多視窗合成與全螢幕擷取，附就地編輯器（[見下](#截圖編輯器)） | 螢幕錄製 |
+| 文字辨識 | 框選範圍或視窗，在本機辨識其中的文字或 QR 碼；預設開結果視窗可修改後複製，開啟靜默辨識則直接複製 | 螢幕錄製 |
 | 結束所有 App | 結束 Finder 以外的所有 App；未儲存的工作仍會跳出詢問 | |
 | 退出磁碟 | 退出所有可卸除的卷宗 | |
 
@@ -105,7 +106,7 @@ macOS 的 TCC 無法預先授予。缺少權限時 SwitchDeck 會顯示「設定
 - **自動化 — Finder** — 清空垃圾桶與項目計數。
 - **輔助使用** — 鎖定鍵盤與螢幕清潔。
 - **麥克風** — 錄音。
-- **螢幕錄製** — 截圖；macOS 會在重新啟動後套用授權。
+- **螢幕錄製** — 截圖與文字辨識；macOS 會在重新啟動後套用授權。
 
 在那裡授予一次，之後選單不會再問；用到缺權限的開關時只會說明缺什麼。可從選單的「權限…」或設定 › 一般重新打開那個視窗。設定 › 一般也會列出輔助使用與自動化的狀態。
 
@@ -119,6 +120,7 @@ build/SwitchDeck.app/Contents/MacOS/SwitchDeck --permissions   # app 看到的�
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --menu          # 建出來的選單長怎樣
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --capture-test  # 擷取主螢幕並回報結果
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --editor-demo   # 用 $SWITCHDECK_DEMO_IMAGE 當背景開編輯器，供截圖用
+build/SwitchDeck.app/Contents/MacOS/SwitchDeck --ocr-demo      # 對 $SWITCHDECK_DEMO_IMAGE 做文字辨識
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --audio-inputs  # CoreAudio 看到的麥克風，標出預設
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --timed-demo    # 跑一次 3 秒延遲擷取，方便目視檢查
 ```
@@ -159,6 +161,7 @@ Tests/ScreenshotTests/         # 標註歷史、樣式、滾動與拼接數學
 | 清空剪貼簿 | `NSPasteboard.clearContents()` | |
 | 錄音 | `AVAudioRecorder` 存到設定 › 錄音選的資料夾（預設 `~/Music/SwitchDeck`），可選麥克風；選單顯示已錄時間 | 需要麥克風權限 |
 | 截圖 | `ScreenCaptureKit` 擷取區域／單一視窗／多視窗合成／全螢幕；無邊框就地編輯器，支援矩形、橢圓、直線、箭頭、畫筆、螢光筆、文字、編號、馬賽克與模糊；延遲擷取、HEX／RGB／HSL 讀值、PNG／JPEG／HEIC 儲存；可複製、儲存、釘選 | 需要螢幕錄製權限；滾動截圖暫停 |
+| 文字辨識 | 沿用截圖的選取層，選好就結束；Vision `VNRecognizeTextRequest`（精準等級、自動偵測語言，支援繁中、簡中、英、日、韓）與 `VNDetectBarcodesRequest` | 在本機執行；有 QR 碼時優先複製 QR 碼內容 |
 | 結束所有 App | `NSRunningApplication.terminate()`，跳過 Finder 與 SwitchDeck | 未儲存的工作仍會跳出詢問 |
 | 退出磁碟 | `NSWorkspace.unmountAndEjectDevice`，計數可卸除的卷宗 | |
 

@@ -52,6 +52,8 @@ final class CaptureSession: ObservableObject {
         case copy
         case save
         case pin
+        /// Read the text (or QR code) in the region and copy that instead.
+        case recognizeText
     }
 
     @Published var tool: Tool = .select {

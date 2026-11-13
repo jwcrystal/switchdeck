@@ -29,7 +29,8 @@ final class SelectionController {
         captureBase: @escaping (CGRect, NSScreen) async -> CGImage?,
         captureWindows: @escaping ([CaptureWindowTarget], CGRect, NSScreen) async -> CGImage?,
         initialSelection: CGRect? = nil,
-        frozen: @escaping (NSScreen) -> CGImage? = { _ in nil }
+        frozen: @escaping (NSScreen) -> CGImage? = { _ in nil },
+        finishOnSelect: CaptureSession.Output? = nil
     ) {
         guard !isActive else { return }
         isActive = true
@@ -47,6 +48,7 @@ final class SelectionController {
                 captureBase: captureBase,
                 frozenScreen: frozen(screen)
             )
+            view.finishOnSelect = finishOnSelect
             view.onCapture = { [weak self] payload, output in
                 self?.finish(payload, output)
             }
@@ -171,6 +173,9 @@ final class SelectionView: NSView {
 
     var onCapture: ((CapturePayload, CaptureSession.Output) -> Void)?
     var onCancel: (() -> Void)?
+    /// Set for captures that skip the editor (text recognition): choosing a
+    /// region or a window delivers it straight away with this output.
+    var finishOnSelect: CaptureSession.Output?
 
     private var selection: CGRect?
     private var interaction: Interaction = .none
@@ -753,6 +758,16 @@ final class SelectionView: NSView {
     private func startEditing() {
         guard selection != nil, !editing else { return }
         editing = true
+
+        if let finishOnSelect {
+            // Windows are captured one by one, so wait for that; a plain
+            // region is captured by the coordinator once the overlay is gone.
+            if !windowTargets.isEmpty {
+                loadBase()
+            }
+            finish(finishOnSelect)
+            return
+        }
         session.annotations = []
         session.onUndo = { [weak self] in self?.performHistory(.undo) }
         session.onRedo = { [weak self] in self?.performHistory(.redo) }

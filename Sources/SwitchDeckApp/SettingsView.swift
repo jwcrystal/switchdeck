@@ -391,6 +391,7 @@ private struct ScreenshotPane: View {
     @AppStorage(ScreenshotPreferences.colorFormatKey) private var colorFormat = 0
     @AppStorage(ScreenshotPreferences.watermarkDefaultKey) private var watermarkDefault = false
     @AppStorage(ScreenshotPreferences.watermarkTextKey) private var watermarkText = ""
+    @AppStorage(ScreenshotPreferences.silentRecognitionKey) private var silentRecognition = false
 
     @State private var folderPath = ScreenshotPreferences.folder.path
 
@@ -424,6 +425,42 @@ private struct ScreenshotPane: View {
                             }
                             Spacer()
                             ShortcutField(model: model, id: ScreenshotCoordinator.id)
+                        }
+                        .padding(.vertical, 6)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(text: t("Recognize Text"))
+
+                    SettingsCard {
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "text.viewfinder")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("Shortcut"))
+                                Text(t("Select a region or window and read its text or QR code, on this Mac."))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            ShortcutField(model: model, id: ScreenshotCoordinator.recognizeTextID)
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "doc.on.clipboard")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("Silent recognition"))
+                                Text(t("Copy the result and show a short preview instead of opening the result window."))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $silentRecognition)
+                                .toggleStyle(.switch)
+                                .labelsHidden()
                         }
                         .padding(.vertical, 6)
                     }
@@ -874,7 +911,7 @@ private struct ShortcutsPane: View {
             .padding(.top, 28)
 
             List {
-                ForEach(model.orderedItems.filter { $0.id != ScreenshotCoordinator.id }, id: \.id) { item in
+                ForEach(model.orderedItems.filter { $0.id != ScreenshotCoordinator.id && $0.id != ScreenshotCoordinator.recognizeTextID }, id: \.id) { item in
                     HStack(spacing: 10) {
                         SymbolTile(symbol: item.symbolName)
                         Text(item.title)

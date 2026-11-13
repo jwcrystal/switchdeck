@@ -61,6 +61,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.screenshot.beginEditorDemo()
             }
         }
+        if CommandLine.arguments.contains("--ocr-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginRecognitionDemo()
+            }
+        }
         if CommandLine.arguments.contains("--selection-demo") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 self?.screenshot.beginDemo()

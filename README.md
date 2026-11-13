@@ -7,7 +7,7 @@
 [![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#requirements)
 [![License](https://img.shields.io/github/license/jwcrystal/switchdeck)](LICENSE)
 
-Sixteen Mac settings you would otherwise dig through System Settings or Terminal for — hidden files, Keep Awake, Night Shift, Dark Mode, a keyboard lock for wiping the keys, ejecting disks — each one click away in the menu bar. Plus a screenshot tool that lets you annotate right where you captured, without opening a second window.
+Seventeen Mac settings you would otherwise dig through System Settings or Terminal for — hidden files, Keep Awake, Night Shift, Dark Mode, a keyboard lock for wiping the keys, ejecting disks — each one click away in the menu bar. Plus a screenshot tool that lets you annotate right where you captured, without opening a second window, and on-device text and QR-code recognition.
 
 Native Swift on AppKit and SwiftUI, no third-party dependencies, free and MIT-licensed.
 
@@ -41,7 +41,7 @@ Needs macOS 14 or later and the Xcode command line tools (`swift --version` shou
 
 ```bash
 git clone https://github.com/jwcrystal/switchdeck.git && cd switchdeck
-swift test                      # 115 tests, no UI needed
+swift test                      # 125 tests, no UI needed
 ./scripts/build-app.sh          # builds build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -68,6 +68,7 @@ Launch at login needs the app in `/Applications`; until then the toggle in Setti
 | Empty Pasteboard | Clears the clipboard | |
 | Recording | Records audio from a chosen microphone; elapsed time in the menu | Microphone |
 | Screenshot | Region, window, multi-window and full-screen capture with an in-place editor ([below](#screenshot-editor)) | Screen Recording |
+| Recognize Text | Select a region or window and read its text or QR code on this Mac; shows the result to edit and copy, or copies straight away with Silent recognition | Screen Recording |
 | Quit All Apps | Quits every app except Finder; unsaved work still prompts | |
 | Eject Disk | Ejects every removable volume | |
 
@@ -105,7 +106,7 @@ macOS TCC cannot be pre-granted. SwitchDeck shows a **Set up SwitchDeck** window
 - **Automation — Finder** — Empty Trash and its item count.
 - **Accessibility** — Lock Keyboard and Screen Clean.
 - **Microphone** — Recording.
-- **Screen Recording** — Screenshot; macOS applies the grant after a relaunch.
+- **Screen Recording** — Screenshot and Recognize Text; macOS applies the grant after a relaunch.
 
 Grant there once and the menu never prompts again; using a switch with a missing permission just explains what is off. Reopen the window from the menu's **Permissions…** item or Settings › General. Accessibility and Automation status is also listed in Settings › General.
 
@@ -119,6 +120,7 @@ build/SwitchDeck.app/Contents/MacOS/SwitchDeck --permissions   # what the app se
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --menu          # the menu as it is built
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --capture-test  # capture the main display, report the result
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --editor-demo   # editor over $SWITCHDECK_DEMO_IMAGE, for screenshots
+build/SwitchDeck.app/Contents/MacOS/SwitchDeck --ocr-demo      # text recognition over $SWITCHDECK_DEMO_IMAGE
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --audio-inputs  # microphones CoreAudio offers, default marked
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --timed-demo    # run the 3 s delayed capture for a visual check
 ```
@@ -159,6 +161,7 @@ Tests/ScreenshotTests/         # annotation history, styles, scrolling and stitc
 | Empty Pasteboard | `NSPasteboard.clearContents()` | |
 | Recording | `AVAudioRecorder` to the folder chosen in Settings › Recording (default `~/Music/SwitchDeck`), with a microphone picker; elapsed time in the menu | Needs Microphone |
 | Screenshot | ScreenCaptureKit region, single-window, multi-window and full-screen capture; borderless editor with rectangle, ellipse, line, arrow, pen, highlighter, text, numbering, mosaic and blur; copy, save, pin | Needs Screen Recording; scrolling capture is paused |
+| Recognize Text | Same overlay as Screenshot, finishing on selection; Vision `VNRecognizeTextRequest` (accurate, language detection, Traditional/Simplified Chinese, English, Japanese, Korean) and `VNDetectBarcodesRequest` | Runs on device; a QR code wins over surrounding text |
 | Quit All Apps | `NSRunningApplication.terminate()`, skips Finder and SwitchDeck | Unsaved work still prompts |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, counts removable volumes | |
 

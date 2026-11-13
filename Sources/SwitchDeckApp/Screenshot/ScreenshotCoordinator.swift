@@ -13,6 +13,7 @@ final class ScreenshotCoordinator {
     private var countdown: CaptureCountdown?
     /// Frames taken just before a timed overlay appeared, keyed by display.
     private var frozenScreens: [CGDirectDisplayID: CGImage] = [:]
+    private let recognitionWindow = TextRecognitionWindowController()
 
     /// The catalog id, also used for the shortcut the settings pane edits.
     static let id = "screenshot"
@@ -25,6 +26,38 @@ final class ScreenshotCoordinator {
             kind: .action,
             perform: { [weak self] in self?.begin() }
         )
+    }
+
+    /// The text-recognition switch: same overlay, no editor.
+    static let recognizeTextID = "recognizeText"
+
+    var recognizeTextItem: SwitchItem {
+        SwitchItem(
+            id: Self.recognizeTextID,
+            title: t("Recognize Text"),
+            symbolName: "text.viewfinder",
+            kind: .action,
+            perform: { [weak self] in self?.beginTextRecognition() }
+        )
+    }
+
+    /// Select a region or window, then read its text. There is no delay and
+    /// no editor: choosing the area is the whole interaction.
+    func beginTextRecognition() {
+        guard !selections.isActive, countdown == nil else { return }
+        start(initialSelection: nil, finishOnSelect: .recognizeText)
+    }
+
+    /// Debug (`--ocr-demo`): recognition over `$SWITCHDECK_DEMO_IMAGE`, so the
+    /// result window and the silent toast can be checked without selecting.
+    func beginRecognitionDemo() {
+        guard let path = ProcessInfo.processInfo.environment["SWITCHDECK_DEMO_IMAGE"],
+              let image = NSImage(contentsOfFile: path)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else {
+            print("--ocr-demo needs SWITCHDECK_DEMO_IMAGE")
+            return
+        }
+        Task { @MainActor in await recognizeText(in: image) }
     }
 
     /// Read-only state for tests: the capture overlay is open.
@@ -202,7 +235,8 @@ final class ScreenshotCoordinator {
 
     private func start(
         initialSelection: CGRect?,
-        frozen: [CGDirectDisplayID: CGImage] = [:]
+        frozen: [CGDirectDisplayID: CGImage] = [:],
+        finishOnSelect: CaptureSession.Output? = nil
     ) {
         guard !selections.isActive else { return }
 
@@ -228,7 +262,8 @@ final class ScreenshotCoordinator {
             frozen: { [weak self] screen in
                 guard let self, let id = Self.displayID(for: screen) else { return nil }
                 return self.frozenScreens[id]
-            }
+            },
+            finishOnSelect: finishOnSelect
         )
     }
 
@@ -301,6 +336,11 @@ final class ScreenshotCoordinator {
                 throw ScreenCaptureService.CaptureError.captureFailed(t("The selected area was empty."))
             }
 
+            if output == .recognizeText {
+                await recognizeText(in: cropped)
+                return
+            }
+
             let visibleWatermark = payload.watermarkVisible ? payload.watermark : nil
             let image = AnnotationRenderer.render(
                 base: cropped,
@@ -315,9 +355,44 @@ final class ScreenshotCoordinator {
                 save(image, watermark: payload.watermark)
             case .pin:
                 pin(image)
+            case .recognizeText:
+                break
             }
         } catch {
             present(error)
+        }
+    }
+
+    private func recognizeText(in image: CGImage) async {
+        let result: TextRecognizer.Result
+        do {
+            result = try await Task.detached(priority: .userInitiated) {
+                try TextRecognizer.recognize(image)
+            }.value
+        } catch {
+            present(error, title: t("Recognize Text"))
+            return
+        }
+
+        let preview = NSImage(cgImage: image, size: .zero)
+        guard ScreenshotPreferences.silentRecognition else {
+            recognitionWindow.show(image: preview, result: result)
+            return
+        }
+
+        guard let text = result.clipboardText else {
+            RecognitionToast.show(t("No text found"), detail: nil) { [weak self] in
+                self?.recognitionWindow.show(image: preview, result: result)
+            }
+            return
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        RecognitionToast.show(
+            result.foundCode ? t("Copied QR code") : t("Copied text"),
+            detail: RecognitionToast.preview(of: text)
+        ) { [weak self] in
+            self?.recognitionWindow.show(image: preview, result: result)
         }
     }
 
@@ -374,12 +449,12 @@ final class ScreenshotCoordinator {
         pinnedWindows.append(window)
     }
 
-    private func present(_ error: Error) {
+    private func present(_ error: Error, title: String = t("Screenshot")) {
         NSApp.activate(ignoringOtherApps: true)
 
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = t("Screenshot")
+        alert.messageText = title
         alert.informativeText = error.localizedDescription
         alert.addButton(withTitle: t("OK"))
 

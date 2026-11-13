@@ -231,3 +231,14 @@
 "System" = "系統";
 
 "SwitchDeck" = "SwitchDeck";
+
+/* Text recognition */
+"Recognize Text" = "文字辨識";
+"Copied text" = "已複製文字";
+"Copied QR code" = "已複製 QR 碼內容";
+"No text found" = "沒有辨識到文字";
+"Text recognition failed: %@" = "文字辨識失敗：%@";
+"Silent recognition" = "靜默辨識";
+"Silent recognition next time" = "下次改用靜默辨識";
+"Copy the result and show a short preview instead of opening the result window." = "直接複製結果並顯示簡短預覽，不開啟結果視窗。";
+"Select a region or window and read its text or QR code, on this Mac." = "框選範圍或視窗，在本機辨識其中的文字或 QR 碼。";

@@ -9,9 +9,9 @@ enum AppCatalog {
         let item = screenshot.switchItem
 
         if let index = items.firstIndex(where: { $0.id == "recording" }) {
-            items.insert(item, at: index)
+            items.insert(contentsOf: [item, screenshot.recognizeTextItem], at: index)
         } else {
-            items.append(item)
+            items.append(contentsOf: [item, screenshot.recognizeTextItem])
         }
 
         return SwitchCatalog(items: items)

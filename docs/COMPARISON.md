@@ -3,13 +3,13 @@
 A factual side-by-side of SwitchDeck, AnySwitch and OnlySwitch, as of November 2026. No code is shared between the three.
 Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 
-- **SwitchDeck** — this repository. A locally built, unsigned-for-distribution menu-bar app with 16 switches.
+- **SwitchDeck** — this repository. A locally built, unsigned-for-distribution menu-bar app with 17 switches.
 - **AnySwitch** — App Store app by anyfun.studio, free with a US$4.99 unlock. Last release 3.8.8 (September 2023). Sandboxed, drives the system through ~20 precompiled AppleScripts.
 - **OnlySwitch** — MIT-licensed open-source app (jacklandrin/OnlySwitch, ~6k stars, commits through November 2026). Much broader feature set: switches, tabs, widgets, schedules, remote control.
 
 ## What SwitchDeck has
 
-**Switches (16)**
+**Switches (17)**
 
 | Switch | Implementation |
 |---|---|
@@ -26,6 +26,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Empty Pasteboard | `NSPasteboard` |
 | Recording | `AVAudioRecorder` to the folder chosen in Settings › Recording, with a microphone picker |
 | Screenshot | ScreenCaptureKit; region, single-window, multi-window and full-screen capture; in-place editor over the selection (rect, ellipse, line, arrow styles, pen, highlighter, text, number, mosaic, blur); timed capture, HEX/RGB/HSL readout, PNG/JPEG/HEIC save; copy/save/pin; scrolling capture paused |
+| Recognize Text | Vision text and QR-code recognition over a selected region or window, on device; result window or silent copy with a preview toast |
 | Quit All Apps | `NSRunningApplication.terminate()` |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, all removable volumes |
 
@@ -38,7 +39,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 - One-time Setup window for Accessibility, System Events, Finder and Microphone, with live status and per-permission "Grant" / "Settings" actions.
 - Single-instance lock, ad-hoc-free local signing identity that keeps TCC grants across rebuilds.
 - Diagnostics: `--dump`, `--run <id>`, `--menu`, `--hotkeys`, `--permissions`, `--probe-automation`.
-- 115 unit tests: SwitchKit config, ordering, hotkeys, Trash counting and Keep Awake options, plus screenshot editing, annotation history, capture cropping and scrolling-engine maths.
+- 125 unit tests: SwitchKit config, ordering, hotkeys, Trash counting, Keep Awake options and text recognition on rendered images, plus screenshot editing, annotation history, capture cropping and scrolling-engine maths.
 
 ## Comparison
 
@@ -47,7 +48,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Distribution | Built locally from source | Mac App Store | GitHub (MIT), plus releases |
 | Price | Free | Free + US$4.99 unlock | Free |
 | Menu shape | Native `NSMenu` list + submenus | `NSMenu` list (same shape) | Popover panel with a grid and tabs |
-| Switch count | 16 | ~20 | ~35 plus optional tool tabs |
+| Switch count | 17 | ~20 | ~35 plus optional tool tabs |
 | Global shortcuts | Carbon + recorder + conflict report | Yes | Yes, plus macOS Shortcuts import |
 | Ordering / hiding | Drag to reorder | Yes, in its Customize page | Yes, with categories and search |
 | Permission flow | One Setup window, live status | Guided prompts | Guided prompts |
@@ -57,7 +58,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Extensibility | Edit Swift sources | Closed | Modular; schedules, Shortcuts, remote |
 | Localisation | English + Traditional Chinese, READMEs and UI | 12+ languages | 20+ languages |
 | Maintained | By whoever builds it | No release since Sep 2023 | Active |
-| Tests / CLI diagnostics | 115 tests, CLI debug modes | None known | Tests for some modules |
+| Tests / CLI diagnostics | 125 tests, CLI debug modes | None known | Tests for some modules |
 | Licence | MIT | Proprietary | MIT |
 
 ## Where SwitchDeck wins
