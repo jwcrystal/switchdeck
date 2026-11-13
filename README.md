@@ -18,7 +18,7 @@ A macOS menu-bar app with sixteen one-click system switches and a built-in scree
 ## Build and run
 
 ```bash
-git clone <this repository> switchdeck && cd switchdeck
+git clone https://github.com/jwcrystal/switchdeck.git && cd switchdeck
 swift test                      # 93 tests, no UI needed
 ./scripts/build-app.sh          # builds build/SwitchDeck.app
 open build/SwitchDeck.app

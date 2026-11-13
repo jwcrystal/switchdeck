@@ -18,7 +18,7 @@ macOS 選單列小工具：16 個一鍵系統開關，加上一個內建的截�
 ## 建置與執行
 
 ```bash
-git clone <本專案網址> switchdeck && cd switchdeck
+git clone https://github.com/jwcrystal/switchdeck.git && cd switchdeck
 swift test                      # 93 個測試，不需要 UI
 ./scripts/build-app.sh          # 產出 build/SwitchDeck.app
 open build/SwitchDeck.app

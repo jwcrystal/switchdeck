@@ -97,7 +97,7 @@ final class MenuController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         let permissionsItem = NSMenuItem(
-            title: "Permissions…",
+            title: t("Permissions…"),
             action: #selector(showPermissions),
             keyEquivalent: ""
         )
@@ -105,12 +105,12 @@ final class MenuController: NSObject, NSMenuDelegate {
         permissionsItem.image = symbol("checkmark.shield")
         menu.addItem(permissionsItem)
 
-        let settings = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: "")
+        let settings = NSMenuItem(title: t("Settings…"), action: #selector(showSettings), keyEquivalent: "")
         settings.target = self
         settings.image = symbol("gearshape")
         menu.addItem(settings)
 
-        let quit = NSMenuItem(title: "Quit SwitchDeck", action: #selector(quit), keyEquivalent: "")
+        let quit = NSMenuItem(title: t("Quit SwitchDeck"), action: #selector(quit), keyEquivalent: "")
         quit.target = self
         menu.addItem(quit)
 
@@ -214,7 +214,7 @@ final class MenuController: NSObject, NSMenuDelegate {
             text += "\n\n" + hint
         }
         alert.informativeText = text
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: t("OK"))
 
         let needsAutomation: Bool
         if case .automation = (error as? SwitchDeckError) ?? .message("") {
@@ -224,7 +224,7 @@ final class MenuController: NSObject, NSMenuDelegate {
         }
 
         if needsAutomation {
-            alert.addButton(withTitle: "Open Privacy Settings")
+            alert.addButton(withTitle: t("Open Privacy Settings"))
             if alert.runModal() == .alertSecondButtonReturn {
                 let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!
                 NSWorkspace.shared.open(url)
