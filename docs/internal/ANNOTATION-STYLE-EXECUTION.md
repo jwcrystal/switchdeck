@@ -6,7 +6,7 @@
 - 實作模型：`commandcode/deepseek/deepseek-v4.1-flash`。
 - Review 模型：`openai/gpt-6.1-sol#high`，分別檢查規範與需求。
 - Review 基準：開始前的 HEAD `1f9e55becec40936ef55afe3dd6c781c670f4ffc`，以最終工作樹差異為範圍，不自動提交。
-- 既有工作：三份未追蹤文件（`ANNOTATION-STYLE-PLAN.md`、一份截圖研究筆記、`SCROLLING-CAPTURE.md`）全數保留。
+- 既有工作：當時工作樹上的三份計畫文件全數保留。
 
 ## 執行順序
 
