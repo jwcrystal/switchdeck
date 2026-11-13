@@ -56,6 +56,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        if CommandLine.arguments.contains("--editor-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginEditorDemo()
+            }
+        }
         if CommandLine.arguments.contains("--selection-demo") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 self?.screenshot.beginDemo()

@@ -55,6 +55,8 @@ Settings › Recording picks the folder and the microphone. `AVAudioRecorder` on
 
 ## Screenshot editor
 
+<p align="center"><img src="docs/images/editor.png" width="640" alt="The in-place editor: a frozen region with a red rectangle, an arrow and a label, and the tool strip under it"></p>
+
 - `⌥E` starts a capture (installed once as a default; change it in Settings › Screenshot).
 - Settings › Screenshot also holds a 0 / 3 / 5 / 10 s delay, the save folder, the file-name prefix, PNG / JPEG / HEIC with a quality slider, the signature text and whether a new capture starts with it, and the starting format for the colour readout. A delayed capture counts down in a small pill and freezes the screen when the clock ends, so a menu or hover state opened during the countdown survives; pressing the shortcut again cancels it.
 - Dragging a region enters editing **in place**: the selection stays on screen, everything outside dims, and the toolbar appears under the region — no second window. Clicking a window edits at that window's frame; `F` selects the whole screen; `R` restores the last region.
@@ -90,6 +92,7 @@ build/SwitchDeck.app/Contents/MacOS/SwitchDeck --hotkeys       # register a prob
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --permissions   # what the app sees for each permission
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --menu          # the menu as it is built
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --capture-test  # capture the main display, report the result
+build/SwitchDeck.app/Contents/MacOS/SwitchDeck --editor-demo   # editor over $SWITCHDECK_DEMO_IMAGE, for screenshots
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --audio-inputs  # microphones CoreAudio offers, default marked
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --timed-demo    # run the 3 s delayed capture for a visual check
 ```

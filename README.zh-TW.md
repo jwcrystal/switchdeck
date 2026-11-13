@@ -55,6 +55,8 @@ open build/SwitchDeck.app
 
 ## 截圖編輯器
 
+<p align="center"><img src="docs/images/editor.png" width="640" alt="就地編輯器：凍結的區域上有紅色矩形、箭頭與文字，下方是工具列"></p>
+
 - `⌥E` 開始擷取（預設安裝一次；可在設定 › 截圖更改）。
 - 設定 › 截圖還放著 0／3／5／10 秒延遲、儲存資料夾、檔名前綴、PNG／JPEG／HEIC 與品質滑桿、簽名文字與「新擷取預設帶簽名」，以及取色讀值的起始格式。延遲擷取會以小膠囊倒數，時間到才凍結畫面，所以倒數期間打開的選單或滑鼠停留狀態會留下來；再按一次快速鍵即取消。
 - 拖出區域後**就地**進入編輯：選取範圍留在畫面上、範圍外變暗、工具列出現在選取區下方，不開第二個視窗。點視窗即以該視窗框為範圍編輯；`F` 選整個螢幕；`R` 還原上次的區域。
@@ -90,6 +92,7 @@ build/SwitchDeck.app/Contents/MacOS/SwitchDeck --hotkeys       # 註冊測試快
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --permissions   # app 看到的每個權限狀態
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --menu          # 建出來的選單長怎樣
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --capture-test  # 擷取主螢幕並回報結果
+build/SwitchDeck.app/Contents/MacOS/SwitchDeck --editor-demo   # 用 $SWITCHDECK_DEMO_IMAGE 當背景開編輯器，供截圖用
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --audio-inputs  # CoreAudio 看到的麥克風，標出預設
 build/SwitchDeck.app/Contents/MacOS/SwitchDeck --timed-demo    # 跑一次 3 秒延遲擷取，方便目視檢查
 ```

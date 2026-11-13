@@ -81,6 +81,46 @@ final class ScreenshotCoordinator {
         start(initialSelection: CGRect(x: 300, y: 240, width: 900, height: 520))
     }
 
+    /// Debug (`--editor-demo`): the editor over a still image instead of the
+    /// live desktop, so a README or a bug report never shows what is on screen.
+    /// The image comes from `SWITCHDECK_DEMO_IMAGE`; without it the demo falls
+    /// back to the frozen desktop, like `--selection-demo`.
+    func beginEditorDemo() {
+        var frozen: [CGDirectDisplayID: CGImage] = [:]
+        if let path = ProcessInfo.processInfo.environment["SWITCHDECK_DEMO_IMAGE"],
+           let image = NSImage(contentsOfFile: path)?.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            for screen in NSScreen.screens {
+                if let id = Self.displayID(for: screen) { frozen[id] = image }
+            }
+        }
+
+        start(
+            initialSelection: CGRect(x: 360, y: 200, width: 1000, height: 600),
+            frozen: frozen
+        )
+
+        guard !frozen.isEmpty else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            self?.selections.session.annotations = [
+                Annotation(
+                    shape: .rectangle(from: CGPoint(x: 0.09, y: 0.14), to: CGPoint(x: 0.54, y: 0.47)),
+                    color: .red,
+                    lineWidth: 0.005
+                ),
+                Annotation(
+                    shape: .arrow(from: CGPoint(x: 0.60, y: 0.63), to: CGPoint(x: 0.87, y: 0.28)),
+                    color: .red,
+                    lineWidth: 0.005
+                ),
+                Annotation(
+                    shape: .text("SwitchDeck", at: CGPoint(x: 0.10, y: 0.66)),
+                    color: .red,
+                    textScale: 0.045
+                ),
+            ]
+        }
+    }
+
     /// Debug: scrolling capture over a region of the main screen. Blocked
     /// while scrolling capture is unavailable, before any overlay or timer.
     func beginScrollingDemo() {
