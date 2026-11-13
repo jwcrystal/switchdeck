@@ -136,8 +136,6 @@ identifier "io.github.jwcrystal.switchdeck" and certificate leaf = H"…"
 
 Verify with `codesign -d -r- build/SwitchDeck.app`.
 
-`docs/internal/` holds the working notes written while building the screenshot editor. They are kept for traceability, not as documentation — some reference plan files that were never committed.
-
 ## Not on the App Store
 
 SwitchDeck cannot ship on the Mac App Store in this form, and does not try to:

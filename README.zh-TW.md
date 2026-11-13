@@ -136,8 +136,6 @@ identifier "io.github.jwcrystal.switchdeck" and certificate leaf = H"…"
 
 用 `codesign -d -r- build/SwitchDeck.app` 驗證。
 
-`docs/internal/` 放的是截圖編輯器開發期間的工作紀錄。留著是為了可追溯，不是文件——裡面引用的一些計畫檔當年就沒提交。
-
 ## 不會上 App Store
 
 SwitchDeck 以現在的形式無法上 Mac App Store，也沒有試：
