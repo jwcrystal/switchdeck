@@ -7,22 +7,41 @@
 [![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#requirements)
 [![License](https://img.shields.io/github/license/jwcrystal/switchdeck)](LICENSE)
 
-A macOS menu-bar app with sixteen one-click system switches and a built-in screenshot editor. Native Swift on AppKit and SwiftUI, built from source with SwiftPM, no third-party dependencies, no App Store sandbox.
+Sixteen Mac settings you would otherwise dig through System Settings or Terminal for — hidden files, Keep Awake, Night Shift, Dark Mode, a keyboard lock for wiping the keys, ejecting disks — each one click away in the menu bar. Plus a screenshot tool that lets you annotate right where you captured, without opening a second window.
+
+Native Swift on AppKit and SwiftUI, no third-party dependencies, free and MIT-licensed.
 
 <p align="center"><img src="docs/images/menu.png" width="360" alt="The SwitchDeck menu: switch rows with their live state, then Permissions, Settings and Quit"></p>
 
-**Status: pre-1.0 (0.8.0).** The switches and the menu are settled; the interface is in English and Traditional Chinese; the screenshot editor works for region, window and full-screen capture, and its scrolling capture is paused (see below). Expect rough edges and direct API changes.
+## Why SwitchDeck
 
-## Requirements
+- **One click instead of a Terminal command.** Showing hidden files or hiding desktop icons normally means `defaults write …` followed by `killall Finder`. Here it is a menu row, and the row shows the current state.
+- **One menu instead of several apps.** Keep Awake, screen cleaning, quick audio recording and an annotating screenshot tool live in the same menu, so there is less to install and fewer icons in the menu bar.
+- **Permissions asked once, in one window.** No dialogs popping up mid-task; a switch that is missing a permission says what is off instead of prompting.
+- **Your menu, your order.** Hide the switches you never use and drag the rest into place.
+- **Screenshots without switching apps.** Drag a region, mark it up where it is, then `Enter` to copy or `Space` to save.
 
-- macOS 14 or later
-- Xcode command line tools (`swift --version` should report 5.9 or later)
+**Status: pre-1.0 (0.8.0).** Usable day to day, in English and Traditional Chinese. Scrolling capture is paused for now (see [Screenshot editor](#screenshot-editor)), and the settings file format may still change before 1.0.
 
-## Build and run
+## Install
+
+### From a release
+
+Needs macOS 14 or later. Download the zip from [Releases](https://github.com/jwcrystal/switchdeck/releases) and move `SwitchDeck.app` to `/Applications`. Releases are built by CI and signed ad-hoc rather than with a paid Apple Developer ID, so macOS blocks the first launch once:
+
+1. Double-click it and click **Done** on the warning.
+2. Open System Settings › Privacy & Security, scroll to Security, click **Open Anyway**, then authenticate.
+3. Launch it again. From then on it opens normally.
+
+`xattr -dr com.apple.quarantine /Applications/SwitchDeck.app` does the same from a terminal. Right-click → Open stopped working in macOS 15. Because the signature is ad-hoc, an update can ask for the Accessibility, Automation and Screen Recording grants again; a local build avoids that once `scripts/setup-signing.sh` has run (below).
+
+### Build from source
+
+Needs macOS 14 or later and the Xcode command line tools (`swift --version` should report 5.9 or later).
 
 ```bash
 git clone https://github.com/jwcrystal/switchdeck.git && cd switchdeck
-swift test                      # 93 tests, no UI needed
+swift test                      # 108 tests, no UI needed
 ./scripts/build-app.sh          # builds build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -31,36 +50,28 @@ open build/SwitchDeck.app
 
 Launch at login needs the app in `/Applications`; until then the toggle in Settings › General reports the system error.
 
-### From a release zip
-
-Releases are built by CI and signed ad-hoc, so macOS blocks the first launch. Move `SwitchDeck.app` to `/Applications`, then:
-
-1. Double-click it once and click **Done** on the warning.
-2. Open System Settings › Privacy & Security, scroll to Security, click **Open Anyway**, then authenticate.
-3. Launch it again.
-
-`xattr -dr com.apple.quarantine /Applications/SwitchDeck.app` does the same from a terminal. Right-click → Open stopped working in macOS 15. Because the signature is ad-hoc rather than a Developer ID, an update can ask for the Accessibility, Automation and Screen Recording grants again; a local build avoids that once `scripts/setup-signing.sh` has run.
-
 ## Switches
 
-| Switch | How it works | Note |
+| Switch | What it does | Needs |
 |---|---|---|
-| Show Hidden Files | `defaults write com.apple.finder AppleShowAllFiles` + Finder restart | Finder restarts |
-| Hide Desktop Icons | `defaults write com.apple.finder CreateDesktop` + Finder restart | Finder restarts; menu says "Icons hidden" |
-| Screen Clean | Black overlay on every screen at screen-saver level + keyboard lock | Click once to reveal Stop Clean |
-| Keep Awake | `ProcessInfo.beginActivity`, optional duration and expiry in the menu | Shown in `pmset -g assertions` |
-| Dark Mode | System Events appearance preferences | Needs Automation |
-| Lock Keyboard | `CGEventTap` swallowing key events, auto-unlocks after 5 min | Needs Accessibility |
-| Lock Screen | private `SACLockScreenImmediate` from `login.framework` | Falls back to ⌃⌘Q via System Events |
-| Night Shift | private `CBBlueLightClient` from `CoreBrightness` (`dlopen`) | No public API; verified on macOS 27 |
-| Stage Manager | `com.apple.WindowManager GloballyEnabled` + WindowManager restart | Key name needs a visual check on this Mac |
-| Stage Manager Autohide | `com.apple.WindowManager AutoHide` + restart | Same |
-| Empty Trash | Finder AppleScript: `count items in trash`, `empty trash` | Needs Automation; direct `~/.Trash` reads are blocked by TCC |
-| Empty Pasteboard | `NSPasteboard.clearContents()` | |
-| Recording | `AVAudioRecorder` to the folder chosen in Settings › Recording (default `~/Music/SwitchDeck`), with a microphone picker; elapsed time in the menu | Needs Microphone |
-| Screenshot | ScreenCaptureKit region, single-window, multi-window and full-screen capture; borderless editor with rectangle, ellipse, line, arrow, pen, highlighter, text, numbering, mosaic and blur; copy, save, pin | Needs Screen Recording; scrolling capture is paused |
-| Quit All Apps | `NSRunningApplication.terminate()`, skips Finder and SwitchDeck | Unsaved work still prompts |
-| Eject Disk | `NSWorkspace.unmountAndEjectDevice`, counts removable volumes | |
+| Show Hidden Files | Shows dotfiles and hidden folders in Finder (Finder restarts) | |
+| Hide Desktop Icons | Clears the desktop for a screen share or a screenshot (Finder restarts) | |
+| Screen Clean | Blacks out every screen and locks the keyboard so both can be wiped | Accessibility |
+| Keep Awake | Keeps the Mac from sleeping, indefinitely or for a set time | |
+| Dark Mode | Switches the system appearance | Automation |
+| Lock Keyboard | Ignores key presses while you clean; unlocks itself after 5 minutes | Accessibility |
+| Lock Screen | Locks the screen immediately | |
+| Night Shift | Turns Night Shift on or off | |
+| Stage Manager | Turns Stage Manager on or off | |
+| Stage Manager Autohide | Hides the Stage Manager strip | |
+| Empty Trash | Empties the Trash; the menu shows how many items are in it | Automation |
+| Empty Pasteboard | Clears the clipboard | |
+| Recording | Records audio from a chosen microphone; elapsed time in the menu | Microphone |
+| Screenshot | Region, window, multi-window and full-screen capture with an in-place editor ([below](#screenshot-editor)) | Screen Recording |
+| Quit All Apps | Quits every app except Finder; unsaved work still prompts | |
+| Eject Disk | Ejects every removable volume | |
+
+How each one is implemented is listed under [Development](#how-each-switch-works).
 
 Settings › Customize reorders and hides switches; the choice is stored in `~/Library/Application Support/SwitchDeck/config.json`. Rows are dragged into place; a context menu offers Move Up / Move Down / Show in Menu for keyboard use.
 
@@ -130,6 +141,27 @@ Tests/SwitchKitTests/          # switches, config, hotkeys, Trash counting
 Tests/ScreenshotTests/         # annotation history, styles, scrolling and stitching maths
 ```
 
+### How each switch works
+
+| Switch | How it works | Note |
+|---|---|---|
+| Show Hidden Files | `defaults write com.apple.finder AppleShowAllFiles` + Finder restart | Finder restarts |
+| Hide Desktop Icons | `defaults write com.apple.finder CreateDesktop` + Finder restart | Finder restarts; menu says "Icons hidden" |
+| Screen Clean | Black overlay on every screen at screen-saver level + keyboard lock | Click once to reveal Stop Clean |
+| Keep Awake | `ProcessInfo.beginActivity`, optional duration and expiry in the menu | Shown in `pmset -g assertions` |
+| Dark Mode | System Events appearance preferences | Needs Automation |
+| Lock Keyboard | `CGEventTap` swallowing key events, auto-unlocks after 5 min | Needs Accessibility |
+| Lock Screen | private `SACLockScreenImmediate` from `login.framework` | Falls back to ⌃⌘Q via System Events |
+| Night Shift | private `CBBlueLightClient` from `CoreBrightness` (`dlopen`) | No public API; verified on macOS 27 |
+| Stage Manager | `com.apple.WindowManager GloballyEnabled` + WindowManager restart | Key name needs a visual check on this Mac |
+| Stage Manager Autohide | `com.apple.WindowManager AutoHide` + restart | Same |
+| Empty Trash | Finder AppleScript: `count items in trash`, `empty trash` | Needs Automation; direct `~/.Trash` reads are blocked by TCC |
+| Empty Pasteboard | `NSPasteboard.clearContents()` | |
+| Recording | `AVAudioRecorder` to the folder chosen in Settings › Recording (default `~/Music/SwitchDeck`), with a microphone picker; elapsed time in the menu | Needs Microphone |
+| Screenshot | ScreenCaptureKit region, single-window, multi-window and full-screen capture; borderless editor with rectangle, ellipse, line, arrow, pen, highlighter, text, numbering, mosaic and blur; copy, save, pin | Needs Screen Recording; scrolling capture is paused |
+| Quit All Apps | `NSRunningApplication.terminate()`, skips Finder and SwitchDeck | Unsaved work still prompts |
+| Eject Disk | `NSWorkspace.unmountAndEjectDevice`, counts removable volumes | |
+
 Adding a switch is one `SwitchItem` plus one class; `docs/adding-a-switch.md` walks through it.
 
 The designated requirement the signature keeps stable across rebuilds is:
@@ -150,7 +182,7 @@ SwitchDeck cannot ship on the Mac App Store in this form, and does not try to:
 - It has no App Store identifier, no entitlement set and no team signing.
 - Private APIs can break on any macOS update; a failing switch degrades to an explanation rather than a crash, but no release here promises otherwise.
 
-Releases attach a CI-built zip, ad-hoc signed, so the first launch needs **Open Anyway** (see Build and run). Build from source instead if you would rather sign it with your own identity, or notarize a Developer ID build before handing it to someone else.
+Releases attach a CI-built zip, ad-hoc signed, so the first launch needs **Open Anyway** (see [Install](#from-a-release)). Build from source instead if you would rather sign it with your own identity, or notarize a Developer ID build before handing it to someone else.
 
 ## Localisation
 
@@ -158,7 +190,7 @@ The interface ships in English and Traditional Chinese (Taiwan). English wording
 
 ## Similar projects
 
-[AnySwitch](https://apps.apple.com/us/app/anyswitch-powerful-switches/id6444313776) (anyfun.studio, Mac App Store) and [OnlySwitch](https://github.com/jacklandrin/OnlySwitch) (MIT) cover much of the same ground; OnlySwitch is the broader and more mature one. No code is shared with either. `docs/COMPARISON.md` has a factual side-by-side, written as a snapshot in November 2026.
+[AnySwitch](https://apps.apple.com/us/app/anyswitch-powerful-switches/id6444313776) (anyfun.studio, Mac App Store) and [OnlySwitch](https://github.com/jacklandrin/OnlySwitch) (MIT) cover much of the same ground. OnlySwitch is broader and still maintained; AnySwitch has had no release since September 2023. The three are independent, with no shared code. SwitchDeck takes a different line: a short, flat native menu rather than a large catalogue, a local build outside the sandbox, and one `SwitchItem` per switch. `docs/COMPARISON.md` has a side-by-side as of November 2026, wins and losses included.
 
 ## License
 

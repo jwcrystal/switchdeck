@@ -7,22 +7,41 @@
 [![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#requirements)
 [![License](https://img.shields.io/github/license/jwcrystal/switchdeck)](LICENSE)
 
-macOS 選單列小工具：16 個一鍵系統開關，加上一個內建的截圖編輯器。原生 Swift（AppKit + SwiftUI），以 SwiftPM 從原始碼建置，沒有第三方相依，沒有 App Store 沙盒。
+平常要翻系統設定、或打開終端機下指令才改得到的 16 個 Mac 設定：顯示隱藏檔、保持清醒、夜覽、深色模式、擦鍵盤用的鍵盤鎖、退出磁碟……全都放在選單列，點一下就切換。另外附一個截圖工具，拍完直接在原地標註，不用再開第二個視窗。
+
+原生 Swift（AppKit + SwiftUI），沒有第三方相依，免費、MIT 授權。
 
 <p align="center"><img src="docs/images/menu.png" width="360" alt="SwitchDeck 選單：每個開關附即時狀態，下方是權限、設定與結束"></p>
 
-**狀態：pre-1.0（0.8.0）。** 開關與選單已定案；介面有英文與繁體中文；截圖編輯器可用於區域、視窗與全螢幕擷取，滾動截圖暫停（見下）。預期會有粗糙邊角與直接變動的 API。
+## 為什麼用 SwitchDeck
 
-## 需求
+- **點一下，取代一行終端機指令。** 顯示隱藏檔、隱藏桌面圖示，平常得先 `defaults write …` 再 `killall Finder`；這裡就是選單裡的一列，而且直接顯示目前狀態。
+- **一個選單，取代好幾個 App。** 保持清醒、螢幕清潔、快速錄音、能標註的截圖工具都在同一個選單裡，少裝幾個 App，選單列也少幾個圖示。
+- **權限只問一次，集中在一個視窗。** 做事做到一半不會突然跳對話框；缺權限的開關只會告訴你缺什麼，不會自己跳出詢問。
+- **選單照你的習慣排。** 用不到的開關藏起來，其他的拖曳排序。
+- **截圖不用切換 App。** 拖出區域、原地標註，`Enter` 複製、`Space` 存檔。
 
-- macOS 14 以上
-- Xcode 命令列工具（`swift --version` 應顯示 5.9 以上）
+**狀態：pre-1.0（0.8.0）。** 已可日常使用，介面有英文與繁體中文。滾動截圖目前暫停（見[截圖編輯器](#截圖編輯器)），設定檔格式在 1.0 之前仍可能調整。
 
-## 建置與執行
+## 安裝
+
+### 從 release 安裝
+
+需要 macOS 14 以上。從 [Releases](https://github.com/jwcrystal/switchdeck/releases) 下載 zip，把 `SwitchDeck.app` 放進 `/Applications`。release 由 CI 建置，用 ad-hoc 簽章而不是付費的 Apple Developer ID，所以 macOS 會擋第一次啟動：
+
+1. 點兩下開啟，警告視窗按 **Done**。
+2. 打開系統設定 › 隱私權與安全性，捲到「安全性」，按 **仍要打開**，然後驗證身份。
+3. 再啟動一次。之後就會正常開啟。
+
+也可以在終端機執行 `xattr -dr com.apple.quarantine /Applications/SwitchDeck.app`。macOS 15 之後右鍵→打開已經無效。因為簽章是 ad-hoc，更新後可能會再問一次輔助使用、自動化與螢幕錄製權限；自己在本機建置並跑過 `scripts/setup-signing.sh` 就不會（見下）。
+
+### 從原始碼建置
+
+需要 macOS 14 以上，以及 Xcode 命令列工具（`swift --version` 應顯示 5.9 以上）。
 
 ```bash
 git clone https://github.com/jwcrystal/switchdeck.git && cd switchdeck
-swift test                      # 93 個測試，不需要 UI
+swift test                      # 108 個測試，不需要 UI
 ./scripts/build-app.sh          # 產出 build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -31,36 +50,28 @@ open build/SwitchDeck.app
 
 開機自動啟動需要把 app 放進 `/Applications`；在那之前，設定 › 一般裡的開關會顯示系統錯誤。
 
-### 從 release zip 安裝
-
-release 由 CI 建置、ad-hoc 簽章，所以 macOS 會擋第一次啟動。把 `SwitchDeck.app` 放進 `/Applications` 後：
-
-1. 點兩下開啟，警告視窗按 **Done**。
-2. 打開系統設定 › 隱私權與安全性，捲到「安全性」，按 **仍要打開**，然後驗證身份。
-3. 再啟動一次。
-
-也可以在終端機執行 `xattr -dr com.apple.quarantine /Applications/SwitchDeck.app`。macOS 15 之後右鍵→打開已經無效。因為簽章是 ad-hoc 而不是 Developer ID，更新後可能會再問一次輔助使用、自動化與螢幕錄製權限；自己在本機建置並跑過 `scripts/setup-signing.sh` 就不會。
-
 ## 開關
 
-| 開關 | 怎麼實作 | 備註 |
+| 開關 | 做什麼 | 需要權限 |
 |---|---|---|
-| 顯示隱藏檔 | `defaults write com.apple.finder AppleShowAllFiles` + 重啟 Finder | Finder 會重啟 |
-| 隱藏桌面圖示 | `defaults write com.apple.finder CreateDesktop` + 重啟 Finder | Finder 會重啟；選單顯示「Icons hidden」 |
-| 螢幕清潔 | 每個螢幕覆蓋一層螢幕保護程式層級的黑幕 + 鎖定鍵盤 | 點一下叫出「停止清潔」 |
-| 保持清醒 | `ProcessInfo.beginActivity`，可選時長，選單顯示到期時間 | 可用 `pmset -g assertions` 查到 |
-| 深色模式 | 透過 System Events 改外觀偏好 | 需要自動化權限 |
-| 鎖定鍵盤 | `CGEventTap` 吞掉按鍵事件，5 分鐘後自動解鎖 | 需要輔助使用權限 |
-| 鎖定螢幕 | `login.framework` 的私有 API `SACLockScreenImmediate` | 失敗時退回 System Events 的 ⌃⌘Q |
-| 夜覽（Night Shift） | `CoreBrightness` 的私有 API `CBBlueLightClient`（`dlopen`） | 沒有公開 API；已在 macOS 27 驗證 |
-| 幕前調度 | `com.apple.WindowManager GloballyEnabled` + 重啟 WindowManager | 鍵名需要在實機目視確認 |
-| 幕前調度自動隱藏 | `com.apple.WindowManager AutoHide` + 重啟 | 同上 |
-| 清空垃圾桶 | Finder AppleScript：`count items in trash`、`empty trash` | 需要自動化權限；TCC 會擋掉直接讀 `~/.Trash` |
-| 清空剪貼簿 | `NSPasteboard.clearContents()` | |
-| 錄音 | `AVAudioRecorder` 存到設定 › 錄音選的資料夾（預設 `~/Music/SwitchDeck`），可選麥克風；選單顯示已錄時間 | 需要麥克風權限 |
-| 截圖 | `ScreenCaptureKit` 擷取區域／單一視窗／多視窗合成／全螢幕；無邊框就地編輯器，支援矩形、橢圓、直線、箭頭、畫筆、螢光筆、文字、編號、馬賽克與模糊；延遲擷取、HEX／RGB／HSL 讀值、PNG／JPEG／HEIC 儲存；可複製、儲存、釘選 | 需要螢幕錄製權限；滾動截圖暫停 |
-| 結束所有 App | `NSRunningApplication.terminate()`，跳過 Finder 與 SwitchDeck | 未儲存的工作仍會跳出詢問 |
-| 退出磁碟 | `NSWorkspace.unmountAndEjectDevice`，計數可卸除的卷宗 | |
+| 顯示隱藏檔 | 在 Finder 顯示點開頭的檔案與隱藏資料夾（Finder 會重啟） | |
+| 隱藏桌面圖示 | 分享螢幕或截圖前把桌面清乾淨（Finder 會重啟） | |
+| 螢幕清潔 | 所有螢幕變黑並鎖住鍵盤，方便擦螢幕和鍵盤 | 輔助使用 |
+| 保持清醒 | 讓 Mac 不進入睡眠，可不限時或設定時長 | |
+| 深色模式 | 切換系統外觀 | 自動化 |
+| 鎖定鍵盤 | 清潔時忽略按鍵；5 分鐘後自動解鎖 | 輔助使用 |
+| 鎖定螢幕 | 立刻鎖定螢幕 | |
+| 夜覽（Night Shift） | 開關夜覽 | |
+| 幕前調度 | 開關幕前調度 | |
+| 幕前調度自動隱藏 | 隱藏幕前調度的側邊列 | |
+| 清空垃圾桶 | 清空垃圾桶；選單顯示裡面有幾個項目 | 自動化 |
+| 清空剪貼簿 | 清掉剪貼簿內容 | |
+| 錄音 | 用選定的麥克風錄音；選單顯示已錄時間 | 麥克風 |
+| 截圖 | 區域、視窗、多視窗合成與全螢幕擷取，附就地編輯器（[見下](#截圖編輯器)） | 螢幕錄製 |
+| 結束所有 App | 結束 Finder 以外的所有 App；未儲存的工作仍會跳出詢問 | |
+| 退出磁碟 | 退出所有可卸除的卷宗 | |
+
+每個開關的實作方式列在[開發](#每個開關怎麼實作)一節。
 
 設定 › 自訂可以調整順序與隱藏開關，選擇存在 `~/Library/Application Support/SwitchDeck/config.json`。列可以拖曳排序；右鍵選單提供「上移／下移／在選單中顯示」給鍵盤操作。
 
@@ -130,6 +141,27 @@ Tests/SwitchKitTests/          # 開關、設定、快速鍵、垃圾桶計數
 Tests/ScreenshotTests/         # 標註歷史、樣式、滾動與拼接數學
 ```
 
+### 每個開關怎麼實作
+
+| 開關 | 怎麼實作 | 備註 |
+|---|---|---|
+| 顯示隱藏檔 | `defaults write com.apple.finder AppleShowAllFiles` + 重啟 Finder | Finder 會重啟 |
+| 隱藏桌面圖示 | `defaults write com.apple.finder CreateDesktop` + 重啟 Finder | Finder 會重啟；選單顯示「Icons hidden」 |
+| 螢幕清潔 | 每個螢幕覆蓋一層螢幕保護程式層級的黑幕 + 鎖定鍵盤 | 點一下叫出「停止清潔」 |
+| 保持清醒 | `ProcessInfo.beginActivity`，可選時長，選單顯示到期時間 | 可用 `pmset -g assertions` 查到 |
+| 深色模式 | 透過 System Events 改外觀偏好 | 需要自動化權限 |
+| 鎖定鍵盤 | `CGEventTap` 吞掉按鍵事件，5 分鐘後自動解鎖 | 需要輔助使用權限 |
+| 鎖定螢幕 | `login.framework` 的私有 API `SACLockScreenImmediate` | 失敗時退回 System Events 的 ⌃⌘Q |
+| 夜覽（Night Shift） | `CoreBrightness` 的私有 API `CBBlueLightClient`（`dlopen`） | 沒有公開 API；已在 macOS 27 驗證 |
+| 幕前調度 | `com.apple.WindowManager GloballyEnabled` + 重啟 WindowManager | 鍵名需要在實機目視確認 |
+| 幕前調度自動隱藏 | `com.apple.WindowManager AutoHide` + 重啟 | 同上 |
+| 清空垃圾桶 | Finder AppleScript：`count items in trash`、`empty trash` | 需要自動化權限；TCC 會擋掉直接讀 `~/.Trash` |
+| 清空剪貼簿 | `NSPasteboard.clearContents()` | |
+| 錄音 | `AVAudioRecorder` 存到設定 › 錄音選的資料夾（預設 `~/Music/SwitchDeck`），可選麥克風；選單顯示已錄時間 | 需要麥克風權限 |
+| 截圖 | `ScreenCaptureKit` 擷取區域／單一視窗／多視窗合成／全螢幕；無邊框就地編輯器，支援矩形、橢圓、直線、箭頭、畫筆、螢光筆、文字、編號、馬賽克與模糊；延遲擷取、HEX／RGB／HSL 讀值、PNG／JPEG／HEIC 儲存；可複製、儲存、釘選 | 需要螢幕錄製權限；滾動截圖暫停 |
+| 結束所有 App | `NSRunningApplication.terminate()`，跳過 Finder 與 SwitchDeck | 未儲存的工作仍會跳出詢問 |
+| 退出磁碟 | `NSWorkspace.unmountAndEjectDevice`，計數可卸除的卷宗 | |
+
 新增一個開關就是一個 `SwitchItem` 加一個類別；`docs/adding-a-switch.md` 有完整流程。
 
 簽章在重建之間保持穩定的 designated requirement 是：
@@ -150,7 +182,7 @@ SwitchDeck 以現在的形式無法上 Mac App Store，也沒有試：
 - 沒有 App Store 用的識別碼、entitlement 或團隊簽章。
 - 私有 API 可能在任一次 macOS 更新後壞掉；壞掉的開關會退化成一句說明而不是 crash，但這個 repo 不承諾別的。
 
-release 會附上 CI 建置的 zip（ad-hoc 簽章），第一次啟動需要按「仍要打開」（見「建置與執行」）。想自己簽章就用原始碼建置；要交給別人則建議用 Developer ID 簽章並 notarize。
+release 會附上 CI 建置的 zip（ad-hoc 簽章），第一次啟動需要按「仍要打開」（見[安裝](#從-release-安裝)）。想自己簽章就用原始碼建置；要交給別人則建議用 Developer ID 簽章並 notarize。
 
 ## 多語系
 
@@ -158,7 +190,7 @@ release 會附上 CI 建置的 zip（ad-hoc 簽章），第一次啟動需要按
 
 ## 類似專案
 
-[AnySwitch](https://apps.apple.com/us/app/anyswitch-powerful-switches/id6444313776)（anyfun.studio，Mac App Store）與 [OnlySwitch](https://github.com/jacklandrin/OnlySwitch)（MIT）涵蓋的範圍大致重疊；OnlySwitch 功能更廣、也更成熟。三者沒有共用程式碼。`docs/COMPARISON.md` 有 2026 年 11 月的並排比較。
+[AnySwitch](https://apps.apple.com/us/app/anyswitch-powerful-switches/id6444313776)（anyfun.studio，Mac App Store）與 [OnlySwitch](https://github.com/jacklandrin/OnlySwitch)（MIT）的功能範圍大致重疊；OnlySwitch 更廣、也仍在維護，AnySwitch 則自 2023 年 9 月後沒有新版本。三者各自獨立，沒有共用程式碼。SwitchDeck 走的是另一條路：精簡的單層原生選單（而不是大型功能清單）、不受沙盒限制的本機建置、一個開關一個 `SwitchItem`。[docs/COMPARISON.md](docs/COMPARISON.md)（英文）有以 2026 年 11 月為準的逐項對照，好處與不足都列了。
 
 ## 授權
 
