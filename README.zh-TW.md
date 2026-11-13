@@ -3,6 +3,9 @@
 [English](README.md) · **繁體中文**
 
 [![CI](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/jwcrystal/switchdeck)](https://github.com/jwcrystal/switchdeck/releases)
+[![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#requirements)
+[![License](https://img.shields.io/github/license/jwcrystal/switchdeck)](LICENSE)
 
 macOS 選單列小工具：16 個一鍵系統開關，加上一個內建的截圖編輯器。原生 Swift（AppKit + SwiftUI），以 SwiftPM 從原始碼建置，沒有第三方相依，沒有 App Store 沙盒。
 

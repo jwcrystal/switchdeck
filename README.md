@@ -3,6 +3,9 @@
 **English** · [繁體中文](README.zh-TW.md)
 
 [![CI](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/jwcrystal/switchdeck)](https://github.com/jwcrystal/switchdeck/releases)
+[![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#requirements)
+[![License](https://img.shields.io/github/license/jwcrystal/switchdeck)](LICENSE)
 
 A macOS menu-bar app with sixteen one-click system switches and a built-in screenshot editor. Native Swift on AppKit and SwiftUI, built from source with SwiftPM, no third-party dependencies, no App Store sandbox.
 
