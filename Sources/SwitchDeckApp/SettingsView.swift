@@ -488,7 +488,7 @@ private struct ScreenshotPane: View {
                                 SymbolTile(symbol: "textformat")
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("File name prefix")
-                                    Text("Goes before “Screenshot <date>”. Empty removes it.")
+                                    Text("Goes before “Screenshot_<date>_<time>”. Empty drops it.")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }

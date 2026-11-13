@@ -7,26 +7,26 @@ final class ScreenshotSaverTests: XCTestCase {
 
     func testFileNameStartsWithThePrefix() {
         let name = ScreenshotPreferences.fileName(prefix: "SwitchDeck", at: date, format: .png)
-        XCTAssertTrue(name.hasPrefix("SwitchDeck Screenshot "))
+        XCTAssertTrue(name.hasPrefix("SwitchDeck_Screenshot_"))
         XCTAssertTrue(name.hasSuffix(".png"))
+        XCTAssertFalse(name.contains(" "))
     }
 
-    func testEmptyPrefixDropsTheLeadingSpace() {
-        XCTAssertTrue(ScreenshotPreferences.fileName(prefix: "", at: date).hasPrefix("Screenshot "))
-        XCTAssertTrue(ScreenshotPreferences.fileName(prefix: "   ", at: date).hasPrefix("Screenshot "))
+    func testEmptyPrefixDropsTheLeadingSeparator() {
+        XCTAssertTrue(ScreenshotPreferences.fileName(prefix: "", at: date).hasPrefix("Screenshot_"))
+        XCTAssertTrue(ScreenshotPreferences.fileName(prefix: "   ", at: date).hasPrefix("Screenshot_"))
     }
 
     func testSlashesCannotTurnThePrefixIntoAFolder() {
         let name = ScreenshotPreferences.fileName(prefix: "team/shots", at: date)
         XCTAssertFalse(name.contains("/"))
-        XCTAssertTrue(name.hasPrefix("team-shots Screenshot "))
+        XCTAssertTrue(name.hasPrefix("team-shots_Screenshot_"))
     }
 
-    func testPrefixIsTrimmed() {
-        XCTAssertEqual(
-            ScreenshotPreferences.sanitizedPrefix("  Work  "),
-            "Work"
-        )
+    /// Spaces would break the space-free scheme, so they become dashes.
+    func testWhitespaceBecomesDashes() {
+        XCTAssertEqual(ScreenshotPreferences.sanitizedPrefix("  My  Shots  "), "My-Shots")
+        XCTAssertEqual(ScreenshotPreferences.sanitizedPrefix("Work"), "Work")
     }
 
     /// The name has to follow the format picker, or a JPEG lands as `.png`.
@@ -38,19 +38,14 @@ final class ScreenshotSaverTests: XCTestCase {
     /// Each format the picker offers must actually encode, with the right
     /// extension on disk.
     func testWritesEveryFormat() throws {
-        let image = NSImage(size: NSSize(width: 24, height: 16))
-        image.lockFocus()
-        NSColor.systemRed.setFill()
-        NSRect(x: 0, y: 0, width: 24, height: 16).fill()
-        image.unlockFocus()
-
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("switchdeck-saver-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
 
         for format in ScreenshotPreferences.ImageFormat.allCases {
             let url = try XCTUnwrap(
                 ScreenshotSaver.write(
-                    image,
+                    Self.image(),
                     watermark: nil,
                     folder: folder,
                     format: format,
@@ -62,7 +57,32 @@ final class ScreenshotSaverTests: XCTestCase {
             XCTAssertEqual(url.pathExtension, format.fileExtension)
             XCTAssertGreaterThan(try Data(contentsOf: url).count, 0)
         }
+    }
 
-        try? FileManager.default.removeItem(at: folder)
+    /// Two captures in the same second keep both files.
+    func testSameSecondDoesNotOverwrite() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("switchdeck-saver-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let first = try XCTUnwrap(ScreenshotSaver.write(
+            Self.image(), watermark: nil, folder: folder, format: .png, quality: 0.9, date: date
+        ))
+        let second = try XCTUnwrap(ScreenshotSaver.write(
+            Self.image(), watermark: nil, folder: folder, format: .png, quality: 0.9, date: date
+        ))
+
+        XCTAssertNotEqual(first, second)
+        XCTAssertTrue(second.lastPathComponent.hasSuffix("_2.png"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.path))
+    }
+
+    private static func image() -> NSImage {
+        let image = NSImage(size: NSSize(width: 24, height: 16))
+        image.lockFocus()
+        NSColor.systemRed.setFill()
+        NSRect(x: 0, y: 0, width: 24, height: 16).fill()
+        image.unlockFocus()
+        return image
     }
 }

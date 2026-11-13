@@ -17,7 +17,7 @@ A macOS menu-bar app with sixteen one-click system switches and a built-in scree
 
 ```bash
 git clone <this repository> switchdeck && cd switchdeck
-swift test                      # 103 tests, no UI needed
+swift test                      # 104 tests, no UI needed
 ./scripts/build-app.sh          # builds build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -66,7 +66,7 @@ Settings › Recording picks the folder and the microphone. `AVAudioRecorder` on
 - With Select, clicking an existing mark edits that object instead of the next one: the options row shows its own colour, stroke, fill, arrow path, text size/bubble or marker shape, changes apply live, and the same values become the default for new marks. Dragging and the eight handles still move or resize it.
 - The signature button adds a watermark (the macOS full user name, or the text in Settings › Screenshot); its popover edits the text, colour, position (four corners, centre or a tiled pattern), size (S/M/L), angle (0/30/45°) and opacity. It is clipped to the capture, so a rotated or tiled watermark never spills outside the selection. The eye-slash button hides it from the image but keeps the text in the PNG metadata.
 - **Scrolling capture is paused in this build**: the toolbar shows no vertical/horizontal entry, the capture callback and debug route refuse to start it, and the stitching engine stays in the source but cannot be reached from the app. Normal region, window and full-screen capture, annotation, copy, save and pin are unaffected.
-- `Enter` copies, `Space` saves an image into the folder and format chosen in Settings › Screenshot (`~/Downloads`, PNG by default) as `SwitchDeck Screenshot <date>`, `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo edits, `Esc` closes.
+- `Enter` copies, `Space` saves an image into the folder and format chosen in Settings › Screenshot (`~/Downloads`, PNG by default) as `SwitchDeck_Screenshot_<date>_<time>`, `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo edits, `Esc` closes. A second capture in the same second gets `_2` instead of overwriting.
 - Pinned images: the corner × or `Esc` closes, scroll resizes, `⌘`-scroll changes opacity, right-click has Copy / 50% Opacity / Close.
 
 ## Permissions

@@ -38,7 +38,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 - One-time Setup window for Accessibility, System Events, Finder and Microphone, with live status and per-permission "Grant" / "Settings" actions.
 - Single-instance lock, ad-hoc-free local signing identity that keeps TCC grants across rebuilds.
 - Diagnostics: `--dump`, `--run <id>`, `--menu`, `--hotkeys`, `--permissions`, `--probe-automation`.
-- 103 unit tests: SwitchKit config, ordering, hotkeys and Trash counting, plus screenshot editing, annotation history, capture cropping and scrolling-engine maths.
+- 104 unit tests: SwitchKit config, ordering, hotkeys and Trash counting, plus screenshot editing, annotation history, capture cropping and scrolling-engine maths.
 
 ## Comparison
 
@@ -57,7 +57,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Extensibility | Edit Swift sources | Closed | Modular; schedules, Shortcuts, remote |
 | Localisation | English + Traditional Chinese READMEs; app UI in English | 12+ languages | 20+ languages |
 | Maintained | By whoever builds it | No release since Sep 2023 | Active |
-| Tests / CLI diagnostics | 103 tests, CLI debug modes | None known | Tests for some modules |
+| Tests / CLI diagnostics | 104 tests, CLI debug modes | None known | Tests for some modules |
 | Licence | No LICENSE file yet | Proprietary | MIT |
 
 ## Where SwitchDeck wins

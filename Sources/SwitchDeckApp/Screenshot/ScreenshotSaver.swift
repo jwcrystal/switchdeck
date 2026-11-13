@@ -35,9 +35,12 @@ enum ScreenshotSaver {
             return nil
         }
 
-        let url = folder.appendingPathComponent(
-            ScreenshotPreferences.fileName(prefix: ScreenshotPreferences.prefix, at: date, format: format)
+        let name = ScreenshotPreferences.fileName(
+            prefix: ScreenshotPreferences.prefix,
+            at: date,
+            format: format
         )
+        let url = uniqueURL(in: folder, name: name)
 
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
               let destination = CGImageDestinationCreateWithURL(
@@ -67,5 +70,20 @@ enum ScreenshotSaver {
 
         CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
         return CGImageDestinationFinalize(destination) ? url : nil
+    }
+
+    /// Two captures inside the same second must not overwrite each other.
+    private static func uniqueURL(in folder: URL, name: String) -> URL {
+        let base = name as NSString
+        let stem = base.deletingPathExtension
+        let ext = base.pathExtension
+
+        var candidate = folder.appendingPathComponent(name)
+        var counter = 2
+        while FileManager.default.fileExists(atPath: candidate.path) {
+            candidate = folder.appendingPathComponent("\(stem)_\(counter).\(ext)")
+            counter += 1
+        }
+        return candidate
     }
 }

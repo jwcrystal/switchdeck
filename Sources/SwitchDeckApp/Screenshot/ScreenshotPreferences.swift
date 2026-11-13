@@ -85,11 +85,13 @@ enum ScreenshotPreferences {
     }
 
     /// A prefix becomes part of a file name, so a slash would quietly turn it
-    /// into a folder.
+    /// into a folder, and spaces would break the compact `_`-joined scheme.
     static func sanitizedPrefix(_ raw: String) -> String {
         raw.trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: "-")
     }
 
     static var imageFormat: ImageFormat {
@@ -104,17 +106,22 @@ enum ScreenshotPreferences {
 
     /// `prefix` defaults to the stored one; the settings pane passes what is
     /// typed so the preview updates before it is saved.
+    ///
+    /// The name is space-free and sorts chronologically:
+    /// `SwitchDeck_Screenshot_2026-11-13_09-07-55.png`.
     static func fileName(
         prefix: String? = nil,
         at date: Date = Date(),
         format: ImageFormat? = nil
     ) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
         let ext = (format ?? imageFormat).fileExtension
-        let base = "Screenshot \(formatter.string(from: date)).\(ext)"
+        let stamp = formatter.string(from: date)
         let name = sanitizedPrefix(prefix ?? self.prefix)
-        return name.isEmpty ? base : "\(name) \(base)"
+        return name.isEmpty
+            ? "Screenshot_\(stamp).\(ext)"
+            : "\(name)_Screenshot_\(stamp).\(ext)"
     }
 
     // MARK: - Capture
