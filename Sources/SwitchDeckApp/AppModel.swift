@@ -26,8 +26,8 @@ final class AppModel: ObservableObject {
         registerHotkeys()
     }
 
-    /// Installs ⌥E once, matching HapiGo's default screenshot shortcut. Later,
-    /// the user can change or clear it in Settings › Screenshot.
+    /// Installs ⌥E once as the default screenshot shortcut. Later, the user
+    /// can change or clear it in Settings › Screenshot.
     private func seedScreenshotShortcutIfNeeded() {
         guard !config.didSeedScreenshotShortcut else { return }
 

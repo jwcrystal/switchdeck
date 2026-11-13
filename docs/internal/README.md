@@ -4,5 +4,6 @@ These are the records written while the feature was being built, kept in the rep
 
 - `ANNOTATION-STYLE-EXECUTION.md` — annotation styles with undo/redo: what was in scope, what was reviewed, how it was verified.
 - `STABLE-SCREENSHOT-MERGE.md` — merging the screenshot branch onto `main`: conflict decisions and the state of each file.
+- `WINDOW-CAPTURE-PLAN.md` — window selection and capture, including the Settings-window regression, its causes and live verification.
 
-Some of these notes link to plan files (`ANNOTATION-STYLE-PLAN.md`, `HAPIGO-SCREENSHOT.md`, `SCROLLING-CAPTURE.md`) that were working scratch files and were not committed. Treat a missing link as a note about a plan that no longer exists rather than as a broken repository.
+Some of these notes link to plan files (`ANNOTATION-STYLE-PLAN.md`, `SCROLLING-CAPTURE.md` and a screenshot study that was never committed) that were working scratch files and were not committed. Treat a missing link as a note about a plan that no longer exists rather than as a broken repository.

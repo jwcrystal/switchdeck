@@ -3,7 +3,7 @@ import Combine
 import SwiftUI
 import SwitchKit
 
-/// In-place screenshot editing, HapiGo style: the selection stays on screen,
+/// In-place screenshot editing: the selection stays on screen,
 /// everything outside it dims, and the toolbar appears right under the region.
 /// Nothing is captured until the user copies, saves or pins.
 @MainActor
@@ -1381,7 +1381,7 @@ final class SelectionView: NSView {
     }
 }
 
-/// Remembers the last region so `R` can reuse it, like HapiGo.
+/// Remembers the last region so `R` can reuse it.
 private enum SelectionMemory {
     private static let key = "ScreenshotLastSelection"
 
