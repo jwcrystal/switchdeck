@@ -17,7 +17,7 @@ A macOS menu-bar app with sixteen one-click system switches and a built-in scree
 
 ```bash
 git clone <this repository> switchdeck && cd switchdeck
-swift test                      # 104 tests, no UI needed
+swift test                      # 93 tests, no UI needed
 ./scripts/build-app.sh          # builds build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -25,6 +25,16 @@ open build/SwitchDeck.app
 `./scripts/setup-signing.sh` is optional but worth running once per machine: it creates a locally trusted, self-signed `SwitchDeck Local Signing` certificate, which `build-app.sh` then signs with. Without it, every rebuild changes the ad-hoc CDHash and macOS treats the app as new, so Accessibility and Automation grants are asked for again.
 
 Launch at login needs the app in `/Applications`; until then the toggle in Settings › General reports the system error.
+
+### From a release zip
+
+Releases are built by CI and signed ad-hoc, so macOS blocks the first launch. Move `SwitchDeck.app` to `/Applications`, then:
+
+1. Double-click it once and click **Done** on the warning.
+2. Open System Settings › Privacy & Security, scroll to Security, click **Open Anyway**, then authenticate.
+3. Launch it again.
+
+`xattr -dr com.apple.quarantine /Applications/SwitchDeck.app` does the same from a terminal. Right-click → Open stopped working in macOS 15. Because the signature is ad-hoc rather than a Developer ID, an update can ask for the Accessibility, Automation and Screen Recording grants again; a local build avoids that once `scripts/setup-signing.sh` has run.
 
 ## Switches
 
@@ -136,7 +146,7 @@ SwitchDeck cannot ship on the Mac App Store in this form, and does not try to:
 - It has no App Store identifier, no entitlement set and no team signing.
 - Private APIs can break on any macOS update; a failing switch degrades to an explanation rather than a crash, but no release here promises otherwise.
 
-Distribution is source-only for now: build it yourself, or notarize your own Developer ID build if you want to hand it to someone else.
+Releases attach a CI-built zip, ad-hoc signed, so the first launch needs **Open Anyway** (see Build and run). Build from source instead if you would rather sign it with your own identity, or notarize a Developer ID build before handing it to someone else.
 
 ## Localisation
 

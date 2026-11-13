@@ -17,7 +17,7 @@ macOS 選單列小工具：16 個一鍵系統開關，加上一個內建的截�
 
 ```bash
 git clone <本專案網址> switchdeck && cd switchdeck
-swift test                      # 104 個測試，不需要 UI
+swift test                      # 93 個測試，不需要 UI
 ./scripts/build-app.sh          # 產出 build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -25,6 +25,16 @@ open build/SwitchDeck.app
 `./scripts/setup-signing.sh` 可選，但每台機器值得跑一次：它會建立本機信任的自簽憑證 `SwitchDeck Local Signing`，`build-app.sh` 之後就自動用它簽章。沒有它，每次重建都會換一個 ad-hoc CDHash，macOS 會把每次建置當成新 app，於是輔助使用與自動化權限每次都要重新詢問。
 
 開機自動啟動需要把 app 放進 `/Applications`；在那之前，設定 › 一般裡的開關會顯示系統錯誤。
+
+### 從 release zip 安裝
+
+release 由 CI 建置、ad-hoc 簽章，所以 macOS 會擋第一次啟動。把 `SwitchDeck.app` 放進 `/Applications` 後：
+
+1. 點兩下開啟，警告視窗按 **Done**。
+2. 打開系統設定 › 隱私權與安全性，捲到「安全性」，按 **仍要打開**，然後驗證身份。
+3. 再啟動一次。
+
+也可以在終端機執行 `xattr -dr com.apple.quarantine /Applications/SwitchDeck.app`。macOS 15 之後右鍵→打開已經無效。因為簽章是 ad-hoc 而不是 Developer ID，更新後可能會再問一次輔助使用、自動化與螢幕錄製權限；自己在本機建置並跑過 `scripts/setup-signing.sh` 就不會。
 
 ## 開關
 
@@ -136,7 +146,7 @@ SwitchDeck 以現在的形式無法上 Mac App Store，也沒有試：
 - 沒有 App Store 用的識別碼、entitlement 或團隊簽章。
 - 私有 API 可能在任一次 macOS 更新後壞掉；壞掉的開關會退化成一句說明而不是 crash，但這個 repo 不承諾別的。
 
-目前只以原始碼形式散布：自己建置，或自己用 Developer ID 簽章並 notarize 後再交給別人。
+release 會附上 CI 建置的 zip（ad-hoc 簽章），第一次啟動需要按「仍要打開」（見「建置與執行」）。想自己簽章就用原始碼建置；要交給別人則建議用 Developer ID 簽章並 notarize。
 
 ## 多語系
 
