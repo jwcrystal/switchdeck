@@ -125,8 +125,9 @@ Sources/SwitchDeckApp/         # AppKit 外殼
   Screenshot/                  # 擷取、就地編輯器、標註、滾動引擎
 Tests/SwitchKitTests/          # 開關、設定、快速鍵、垃圾桶計數
 Tests/ScreenshotTests/         # 標註歷史、樣式、滾動與拼接數學
-scripts/build-app.sh           # SPM binary -> .app，附 Info.plist 與本機簽章
 ```
+
+新增一個開關就是一個 `SwitchItem` 加一個類別；`docs/adding-a-switch.md` 有完整流程。
 
 簽章在重建之間保持穩定的 designated requirement 是：
 

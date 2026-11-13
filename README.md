@@ -125,8 +125,9 @@ Sources/SwitchDeckApp/         # AppKit shell
   Screenshot/                  # capture, in-place editor, annotations, scrolling engine
 Tests/SwitchKitTests/          # switches, config, hotkeys, Trash counting
 Tests/ScreenshotTests/         # annotation history, styles, scrolling and stitching maths
-scripts/build-app.sh           # SPM binary -> .app with Info.plist + local signature
 ```
+
+Adding a switch is one `SwitchItem` plus one class; `docs/adding-a-switch.md` walks through it.
 
 The designated requirement the signature keeps stable across rebuilds is:
 
