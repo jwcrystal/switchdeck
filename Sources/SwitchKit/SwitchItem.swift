@@ -16,10 +16,21 @@ public struct SwitchItem {
     /// An entry in the item's submenu, e.g. "Keep Awake › 1 hour".
     public struct MenuAction {
         public let title: String
+        /// Read when the menu opens; true draws a checkmark next to the entry.
+        public let isChecked: () -> Bool
+        /// Draws a separator above the entry.
+        public let startsSection: Bool
         public let perform: () throws -> Void
 
-        public init(title: String, perform: @escaping () throws -> Void) {
+        public init(
+            title: String,
+            isChecked: @escaping () -> Bool = { false },
+            startsSection: Bool = false,
+            perform: @escaping () throws -> Void
+        ) {
             self.title = title
+            self.isChecked = isChecked
+            self.startsSection = startsSection
             self.perform = perform
         }
     }

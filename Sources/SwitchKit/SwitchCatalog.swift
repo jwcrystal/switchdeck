@@ -70,7 +70,13 @@ public struct SwitchCatalog {
                 actions: {
                     KeepAwakeSwitch.durations.map { duration in
                         .init(title: t(duration.title)) { keepAwake.start(minutes: duration.minutes) }
-                    }
+                    } + [
+                        .init(
+                            title: t("Keep Display On"),
+                            isChecked: { keepAwake.keepsDisplayOn },
+                            startsSection: true
+                        ) { keepAwake.keepsDisplayOn.toggle() },
+                    ]
                 },
                 perform: {
                     if keepAwake.isOn {

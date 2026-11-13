@@ -41,7 +41,7 @@
 
 ```bash
 git clone https://github.com/jwcrystal/switchdeck.git && cd switchdeck
-swift test                      # 108 個測試，不需要 UI
+swift test                      # 115 個測試，不需要 UI
 ./scripts/build-app.sh          # 產出 build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -57,7 +57,7 @@ open build/SwitchDeck.app
 | 顯示隱藏檔 | 在 Finder 顯示點開頭的檔案與隱藏資料夾（Finder 會重啟） | |
 | 隱藏桌面圖示 | 分享螢幕或截圖前把桌面清乾淨（Finder 會重啟） | |
 | 螢幕清潔 | 所有螢幕變黑並鎖住鍵盤，方便擦螢幕和鍵盤 | 輔助使用 |
-| 保持清醒 | 讓 Mac 不進入睡眠，可不限時或設定時長 | |
+| 保持清醒 | 讓 Mac 不進入睡眠，可不限時或設定時長；勾選「螢幕保持開啟」連螢幕也不會關 | |
 | 深色模式 | 切換系統外觀 | 自動化 |
 | 鎖定鍵盤 | 清潔時忽略按鍵；5 分鐘後自動解鎖 | 輔助使用 |
 | 鎖定螢幕 | 立刻鎖定螢幕 | |
@@ -148,7 +148,7 @@ Tests/ScreenshotTests/         # 標註歷史、樣式、滾動與拼接數學
 | 顯示隱藏檔 | `defaults write com.apple.finder AppleShowAllFiles` + 重啟 Finder | Finder 會重啟 |
 | 隱藏桌面圖示 | `defaults write com.apple.finder CreateDesktop` + 重啟 Finder | Finder 會重啟；選單顯示「Icons hidden」 |
 | 螢幕清潔 | 每個螢幕覆蓋一層螢幕保護程式層級的黑幕 + 鎖定鍵盤 | 點一下叫出「停止清潔」 |
-| 保持清醒 | `ProcessInfo.beginActivity`，可選時長，選單顯示到期時間 | 可用 `pmset -g assertions` 查到 |
+| 保持清醒 | `ProcessInfo.beginActivity`（勾選「螢幕保持開啟」時加上 `.idleDisplaySleepDisabled`），可選時長，選單顯示到期時間 | 可用 `pmset -g assertions` 查到 |
 | 深色模式 | 透過 System Events 改外觀偏好 | 需要自動化權限 |
 | 鎖定鍵盤 | `CGEventTap` 吞掉按鍵事件，5 分鐘後自動解鎖 | 需要輔助使用權限 |
 | 鎖定螢幕 | `login.framework` 的私有 API `SACLockScreenImmediate` | 失敗時退回 System Events 的 ⌃⌘Q |

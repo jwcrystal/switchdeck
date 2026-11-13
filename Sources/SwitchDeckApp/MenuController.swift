@@ -12,7 +12,11 @@ final class MenuController: NSObject, NSMenuDelegate {
 
     private final class ActionBox: NSObject {
         let run: () throws -> Void
-        init(_ run: @escaping () throws -> Void) { self.run = run }
+        let isChecked: () -> Bool
+        init(_ run: @escaping () throws -> Void, isChecked: @escaping () -> Bool) {
+            self.run = run
+            self.isChecked = isChecked
+        }
     }
 
     private let statusItem: NSStatusItem
@@ -120,9 +124,13 @@ final class MenuController: NSObject, NSMenuDelegate {
     private func makeSubmenu(_ actions: [SwitchItem.MenuAction]) -> NSMenu {
         let submenu = NSMenu()
         for action in actions {
+            if action.startsSection, !submenu.items.isEmpty {
+                submenu.addItem(.separator())
+            }
             let menuItem = NSMenuItem(title: action.title, action: #selector(runAction(_:)), keyEquivalent: "")
             menuItem.target = self
-            menuItem.representedObject = ActionBox(action.perform)
+            menuItem.representedObject = ActionBox(action.perform, isChecked: action.isChecked)
+            menuItem.state = action.isChecked() ? .on : .off
             submenu.addItem(menuItem)
         }
         return submenu
@@ -143,6 +151,11 @@ final class MenuController: NSObject, NSMenuDelegate {
             let item = box.item
             menuItem.state = (item.kind == .toggle && item.state()) ? .on : .off
             menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item))
+            // Submenus are built once per rebuild, so refresh their checkmarks here.
+            for subitem in menuItem.submenu?.items ?? [] {
+                guard let action = subitem.representedObject as? ActionBox else { continue }
+                subitem.state = action.isChecked() ? .on : .off
+            }
         }
     }
 

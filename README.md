@@ -41,7 +41,7 @@ Needs macOS 14 or later and the Xcode command line tools (`swift --version` shou
 
 ```bash
 git clone https://github.com/jwcrystal/switchdeck.git && cd switchdeck
-swift test                      # 108 tests, no UI needed
+swift test                      # 115 tests, no UI needed
 ./scripts/build-app.sh          # builds build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -57,7 +57,7 @@ Launch at login needs the app in `/Applications`; until then the toggle in Setti
 | Show Hidden Files | Shows dotfiles and hidden folders in Finder (Finder restarts) | |
 | Hide Desktop Icons | Clears the desktop for a screen share or a screenshot (Finder restarts) | |
 | Screen Clean | Blacks out every screen and locks the keyboard so both can be wiped | Accessibility |
-| Keep Awake | Keeps the Mac from sleeping, indefinitely or for a set time | |
+| Keep Awake | Keeps the Mac from sleeping, indefinitely or for a set time; Keep Display On also stops the screen from turning off | |
 | Dark Mode | Switches the system appearance | Automation |
 | Lock Keyboard | Ignores key presses while you clean; unlocks itself after 5 minutes | Accessibility |
 | Lock Screen | Locks the screen immediately | |
@@ -148,7 +148,7 @@ Tests/ScreenshotTests/         # annotation history, styles, scrolling and stitc
 | Show Hidden Files | `defaults write com.apple.finder AppleShowAllFiles` + Finder restart | Finder restarts |
 | Hide Desktop Icons | `defaults write com.apple.finder CreateDesktop` + Finder restart | Finder restarts; menu says "Icons hidden" |
 | Screen Clean | Black overlay on every screen at screen-saver level + keyboard lock | Click once to reveal Stop Clean |
-| Keep Awake | `ProcessInfo.beginActivity`, optional duration and expiry in the menu | Shown in `pmset -g assertions` |
+| Keep Awake | `ProcessInfo.beginActivity` (adds `.idleDisplaySleepDisabled` with Keep Display On), optional duration and expiry in the menu | Shown in `pmset -g assertions` |
 | Dark Mode | System Events appearance preferences | Needs Automation |
 | Lock Keyboard | `CGEventTap` swallowing key events, auto-unlocks after 5 min | Needs Accessibility |
 | Lock Screen | private `SACLockScreenImmediate` from `login.framework` | Falls back to ⌃⌘Q via System Events |
