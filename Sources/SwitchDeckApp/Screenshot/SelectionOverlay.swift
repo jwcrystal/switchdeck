@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import SwitchKit
 
 /// In-place screenshot editing, HapiGo style: the selection stays on screen,
 /// everything outside it dims, and the toolbar appears right under the region.
@@ -245,7 +246,7 @@ final class SelectionView: NSView {
         path.fill()
 
         guard let selection else {
-            drawHint("Drag to select · click a window · F for the whole screen · R for last region")
+            drawHint(t("Drag to select · click a window · F for the whole screen · R for last region"))
             drawColorReadout()
             drawColorHint()
             return
@@ -282,7 +283,7 @@ final class SelectionView: NSView {
 
             drawHandles(for: selection)
             drawLabel(sizeText(for: selection), above: selection)
-            drawHint("Enter or drag to edit · R reuses the last region · Esc cancels")
+            drawHint(t("Enter or drag to edit · R reuses the last region · Esc cancels"))
         }
 
         if !editing {
@@ -389,7 +390,7 @@ final class SelectionView: NSView {
 
     private func drawColorHint() {
         let string = NSAttributedString(
-            string: "C Copy colour · ⌥ HEX / RGB / HSL",
+            string: t("C Copy colour · ⌥ HEX / RGB / HSL"),
             attributes: [
                 .font: NSFont.systemFont(ofSize: 11, weight: .medium),
                 .foregroundColor: NSColor.white.withAlphaComponent(0.8),
@@ -619,7 +620,7 @@ final class SelectionView: NSView {
         }
         guard let image else {
             onCancel?()
-            ColorToast.show("No screenshot frame was captured. Please try again.")
+            ColorToast.show(t("No screenshot frame was captured. Please try again."))
             return
         }
 
@@ -631,14 +632,14 @@ final class SelectionView: NSView {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects([nsImage])
         ColorToast.show(saved == nil
-            ? "Screenshot copied, but the file could not be saved"
-            : "Scrolling screenshot saved and copied")
+            ? t("Screenshot copied, but the file could not be saved")
+            : t("Scrolling screenshot saved and copied"))
         onCancel?()
     }
 
     private func drawEditingHint() {
         guard let toolbarHost else { return }
-        let text = "↩ Copy · Space Save · P Pin · ⌘Z Undo · Esc Close"
+        let text = t("↩ Copy · Space Save · P Pin · ⌘Z Undo · Esc Close")
         let string = NSAttributedString(
             string: text,
             attributes: [
@@ -1090,7 +1091,7 @@ final class SelectionView: NSView {
         textAnchor = point
 
         let field = NSTextField(frame: NSRect(x: point.x, y: point.y - 12, width: 200, height: 24))
-        field.placeholderString = "Text"
+        field.placeholderString = t("Text")
         field.font = .systemFont(ofSize: 13)
         field.target = self
         field.action = #selector(commitText)

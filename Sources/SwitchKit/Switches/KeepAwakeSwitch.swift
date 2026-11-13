@@ -39,8 +39,8 @@ public final class KeepAwakeSwitch {
 
     public var subtitle: String? {
         guard isOn else { return nil }
-        guard let expiry else { return "Until turned off" }
-        return "Until " + Self.clock.string(from: expiry)
+        guard let expiry else { return t("Until turned off") }
+        return tf("Until %@", Self.clock.string(from: expiry))
     }
 
     public func start(minutes: Int?) {

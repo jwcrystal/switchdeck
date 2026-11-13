@@ -48,10 +48,10 @@ public final class NightShiftSwitch {
 
     public func set(_ on: Bool) throws {
         guard let client else {
-            throw SwitchDeckError.message("Night Shift is not available on this macOS version.")
+            throw SwitchDeckError.message(t("Night Shift is not available on this macOS version."))
         }
         guard client.setEnabled(on) else {
-            throw SwitchDeckError.message("CoreBrightness refused to change Night Shift.")
+            throw SwitchDeckError.message(t("CoreBrightness refused to change Night Shift."))
         }
     }
 

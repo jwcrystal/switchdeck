@@ -66,17 +66,17 @@ private final class ScreenCleanView: NSView {
 
     private let card = NSView()
     private let icon = NSImageView()
-    private let titleLabel = NSTextField(labelWithString: "Screen Clean")
+    private let titleLabel = NSTextField(labelWithString: t("Screen Clean"))
     private let bodyLabel: NSTextField
-    private let button = NSButton(title: "Stop Clean", target: nil, action: nil)
-    private let hint = NSTextField(labelWithString: "Click anywhere to show the exit button")
+    private let button = NSButton(title: t("Stop Clean"), target: nil, action: nil)
+    private let hint = NSTextField(labelWithString: t("Click anywhere to show the exit button"))
 
     private var revealed = false
 
     init(frame: NSRect, keyboardLocked: Bool) {
         bodyLabel = NSTextField(wrappingLabelWithString: keyboardLocked
-            ? "The display is dark and the keyboard is locked.\nWipe the screen with a dry cloth, then press the button below."
-            : "The display is dark.\nWipe the screen with a dry cloth, then press the button below.\n\nAccessibility permission is missing, so the keyboard is not locked.")
+            ? t("The display is dark and the keyboard is locked.\nWipe the screen with a dry cloth, then press the button below.")
+            : t("The display is dark.\nWipe the screen with a dry cloth, then press the button below.\n\nAccessibility permission is missing, so the keyboard is not locked."))
         super.init(frame: frame)
         wantsLayer = true
         layer?.backgroundColor = NSColor.black.cgColor

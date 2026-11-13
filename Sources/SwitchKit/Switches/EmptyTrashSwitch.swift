@@ -93,8 +93,10 @@ public final class FileTrash: TrashAccess {
 
         guard failures.isEmpty else {
             let names = failures.prefix(3).joined(separator: ", ")
-            let suffix = failures.count > 3 ? " and \(failures.count - 3) more" : ""
-            throw SwitchDeckError.message("Could not delete \(names)\(suffix). Something may still be open.")
+            let suffix = failures.count > 3 ? tf(" and %d more", failures.count - 3) : ""
+            throw SwitchDeckError.message(
+                tf("Could not delete %@%@. Something may still be open.", names, suffix)
+            )
         }
     }
 }
@@ -108,8 +110,12 @@ public final class EmptyTrashSwitch {
     }
 
     public var subtitle: String? {
-        guard let count = access.itemCount() else { return "No access" }
-        return count == 0 ? "Empty" : "\(count) items"
+        guard let count = access.itemCount() else { return t("No access") }
+        switch count {
+        case 0: return t("Empty")
+        case 1: return t("1 item")
+        default: return tf("%d items", count)
+        }
     }
 
     public func empty() throws {

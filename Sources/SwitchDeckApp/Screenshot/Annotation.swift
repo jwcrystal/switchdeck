@@ -1,6 +1,7 @@
 import AppKit
 import CoreImage
 import SwiftUI
+import SwitchKit
 
 enum ArrowStyle: Hashable {
     case straight
@@ -402,12 +403,12 @@ enum AnnotationRenderer {
 
             var title: String {
                 switch self {
-                case .bottomRight: return "Bottom Right"
-                case .bottomLeft: return "Bottom Left"
-                case .topRight: return "Top Right"
-                case .topLeft: return "Top Left"
-                case .center: return "Center"
-                case .tiled: return "Tiled"
+                case .bottomRight: return t("Bottom Right")
+                case .bottomLeft: return t("Bottom Left")
+                case .topRight: return t("Top Right")
+                case .topLeft: return t("Top Left")
+                case .center: return t("Center")
+                case .tiled: return t("Tiled")
                 }
             }
 

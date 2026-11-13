@@ -1,21 +1,22 @@
 import AppKit
+import SwitchKit
 
 /// Small floating panel shown while a scrolling capture runs. It sits above
 /// the overlay, which ignores the mouse during the capture so scroll gestures
 /// reach the window underneath.
 @MainActor
 final class ScrollHUD: NSPanel {
-    private let titleLabel = NSTextField(labelWithString: "Scrolling capture")
-    private let detail = NSTextField(labelWithString: "0 px · scroll, then Done")
-    private let doneButton = NSButton(title: "Done", target: nil, action: nil)
-    private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
+    private let titleLabel = NSTextField(labelWithString: t("Scrolling capture"))
+    private let detail = NSTextField(labelWithString: tf("%d px · scroll, then Done", 0))
+    private let doneButton = NSButton(title: t("Done"), target: nil, action: nil)
+    private let cancelButton = NSButton(title: t("Cancel"), target: nil, action: nil)
     private let captureTitle: String
 
     var onDone: (() -> Void)?
     var onCancel: (() -> Void)?
 
     init(direction: ScrollingCapture.Direction = .vertical) {
-        captureTitle = direction == .horizontal ? "Horizontal capture" : "Vertical capture"
+        captureTitle = direction == .horizontal ? t("Horizontal capture") : t("Vertical capture")
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 348, height: 52),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -73,13 +74,13 @@ final class ScrollHUD: NSPanel {
     func update(height: Int) {
         titleLabel.stringValue = captureTitle
         detail.textColor = .secondaryLabelColor
-        detail.stringValue = "\(height) px · scroll, then Done"
+        detail.stringValue = tf("%d px · scroll, then Done", height)
     }
 
     func showNeedsOverlap(height: Int) {
-        titleLabel.stringValue = "Waiting for overlap"
+        titleLabel.stringValue = t("Waiting for overlap")
         detail.textColor = .systemOrange
-        detail.stringValue = "\(height) px · scroll back slowly"
+        detail.stringValue = tf("%d px · scroll back slowly", height)
     }
 
     /// Puts the panel just outside the selection, inside the screen.

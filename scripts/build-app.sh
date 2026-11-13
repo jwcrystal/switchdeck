@@ -24,6 +24,14 @@ if [ -f Resources/AppIcon.icns ]; then
   cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 fi
 
+# Localisation: every `Resources/<lang>.lproj` ships as-is, because the strings
+# are looked up in Bundle.main. English needs no file: the literals in the
+# source are the fallback.
+for lproj in Resources/*.lproj; do
+  [ -d "$lproj" ] || continue
+  cp -R "$lproj" "$APP/Contents/Resources/"
+done
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -39,6 +47,11 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <string>io.github.jwcrystal.switchdeck</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>zh-Hant</string>
+    </array>
     <key>CFBundleName</key>
     <string>SwitchDeck</string>
     <key>CFBundlePackageType</key>

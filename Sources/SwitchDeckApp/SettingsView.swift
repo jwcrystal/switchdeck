@@ -498,7 +498,7 @@ private struct ScreenshotPane: View {
                                     .frame(width: 168)
                             }
 
-                            Text("Saves as \(ScreenshotPreferences.fileName(prefix: prefix, format: selectedFormat))")
+                            Text(tf("Saves as %@", ScreenshotPreferences.fileName(prefix: prefix, format: selectedFormat)))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
@@ -540,7 +540,7 @@ private struct ScreenshotPane: View {
                                 Spacer()
                                 Slider(value: $quality, in: 0.5...1.0)
                                     .frame(width: 168)
-                                Text("\(Int((quality * 100).rounded()))%")
+                                Text(tf("%d%%", Int((quality * 100).rounded())))
                                     .font(.system(size: 12, design: .monospaced))
                                     .foregroundStyle(.secondary)
                                     .frame(width: 36, alignment: .trailing)
@@ -882,19 +882,19 @@ private struct AboutPane: View {
             Text("SwitchDeck")
                 .font(.system(size: 22, weight: .semibold))
 
-            Text("Version \(Self.version)")
+            Text(tf("Version %@", Self.version))
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            Text("A local reimplementation of AnySwitch's menu-bar switches.\nNo telemetry, no in-app purchase.")
+            Text(t("Menu-bar switches for macOS.\nNo telemetry, no in-app purchase."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.top, 4)
 
             HStack(spacing: 18) {
-                Link("Repository", destination: URL(string: "https://github.com/jared/switchdeck")!)
-                Link("Report an Issue", destination: URL(string: "https://github.com/jared/switchdeck/issues")!)
+                Link("Repository", destination: URL(string: "https://github.com/jwcrystal/switchdeck")!)
+                Link("Report an Issue", destination: URL(string: "https://github.com/jwcrystal/switchdeck/issues")!)
             }
             .font(.callout)
             .padding(.top, 6)

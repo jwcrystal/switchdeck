@@ -83,7 +83,7 @@ public final class RecordingSwitch {
             }
         default:
             throw SwitchDeckError.message(
-                "Microphone access is off. Turn it on in System Settings › Privacy & Security › Microphone."
+                t("Microphone access is off. Turn it on in System Settings › Privacy & Security › Microphone.")
             )
         }
     }
@@ -114,7 +114,7 @@ public final class RecordingSwitch {
 
         guard recorder.record() else {
             restoreInputDevice()
-            throw SwitchDeckError.message("The recorder could not start.")
+            throw SwitchDeckError.message(t("The recorder could not start."))
         }
 
         self.recorder = recorder

@@ -24,13 +24,17 @@ public final class EjectDiskSwitch {
 
     public var subtitle: String? {
         let count = ejectableVolumes.count
-        return count == 0 ? "No disks" : "\(count) disks"
+        switch count {
+        case 0: return t("No disks")
+        case 1: return t("1 disk")
+        default: return tf("%d disks", count)
+        }
     }
 
     public func ejectAll() throws {
         let volumes = ejectableVolumes
         guard !volumes.isEmpty else {
-            throw SwitchDeckError.message("There is no ejectable disk right now.")
+            throw SwitchDeckError.message(t("There is no ejectable disk right now."))
         }
 
         var failed: [String] = []
@@ -43,7 +47,9 @@ public final class EjectDiskSwitch {
         }
 
         guard failed.isEmpty else {
-            throw SwitchDeckError.message("Could not eject: \(failed.joined(separator: ", ")). A file on the disk may still be open.")
+            throw SwitchDeckError.message(
+                tf("Could not eject: %@. A file on the disk may still be open.", failed.joined(separator: ", "))
+            )
         }
     }
 }

@@ -1,0 +1,4 @@
+/* SwitchDeck — Traditional Chinese (Taiwan) Info.plist strings. */
+CFBundleDisplayName = "SwitchDeck";
+"NSAppleEventsUsageDescription" = "SwitchDeck 會用 System Events 改變外觀與其他系統設定。";
+"NSMicrophoneUsageDescription" = "從選單開始錄音時，SwitchDeck 會錄製音訊。";

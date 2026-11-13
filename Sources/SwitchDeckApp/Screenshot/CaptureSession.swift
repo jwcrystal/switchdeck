@@ -1,4 +1,5 @@
 import SwiftUI
+import SwitchKit
 
 /// State for the in-place capture editor: the toolbar that sits under the
 /// selection, plus the annotations drawn on it.
@@ -32,17 +33,17 @@ final class CaptureSession: ObservableObject {
 
         var help: String {
             switch self {
-            case .select: return "Select and move (⌫ deletes)"
-            case .rectangle: return "Rectangle"
-            case .ellipse: return "Ellipse"
-            case .line: return "Line"
-            case .arrow: return "Arrow"
-            case .pen: return "Freehand"
-            case .highlighter: return "Highlighter"
-            case .text: return "Text"
-            case .number: return "Number"
-            case .mosaic: return "Mosaic"
-            case .blur: return "Blur"
+            case .select: return t("Select and move (⌫ deletes)")
+            case .rectangle: return t("Rectangle")
+            case .ellipse: return t("Ellipse")
+            case .line: return t("Line")
+            case .arrow: return t("Arrow")
+            case .pen: return t("Freehand")
+            case .highlighter: return t("Highlighter")
+            case .text: return t("Text")
+            case .number: return t("Number")
+            case .mosaic: return t("Mosaic")
+            case .blur: return t("Blur")
             }
         }
     }
@@ -336,11 +337,11 @@ struct CaptureToolbarView: View {
 
             if session.showsScrollingCapture {
                 Menu {
-                    Button("Vertical scrolling capture") {
+                    Button(t("Vertical scrolling capture")) {
                         session.scrollingDirection = .vertical
                         session.onScroll()
                     }
-                    Button("Horizontal scrolling capture") {
+                    Button(t("Horizontal scrolling capture")) {
                         session.scrollingDirection = .horizontal
                         session.onScroll()
                     }
@@ -352,12 +353,12 @@ struct CaptureToolbarView: View {
                 .help("Scrolling capture: vertical or horizontal")
                 .accessibilityLabel("Scrolling capture direction")
             }
-            icon("arrow.uturn.backward", help: "Undo (⌘Z)", enabled: session.canUndo, action: session.onUndo)
-            icon("arrow.uturn.forward", help: "Redo (⇧⌘Z)", enabled: session.canRedo, action: session.onRedo)
-            icon("doc.on.doc", help: "Copy (↩)", action: session.onCopy)
-            icon("square.and.arrow.down", help: "Save (Space)", action: session.onSave)
-            icon("pin", help: "Pin (P)", action: session.onPin)
-            icon("xmark", help: "Close (Esc)", action: session.onClose)
+            icon("arrow.uturn.backward", help: t("Undo (⌘Z)"), enabled: session.canUndo, action: session.onUndo)
+            icon("arrow.uturn.forward", help: t("Redo (⇧⌘Z)"), enabled: session.canRedo, action: session.onRedo)
+            icon("doc.on.doc", help: t("Copy (↩)"), action: session.onCopy)
+            icon("square.and.arrow.down", help: t("Save (Space)"), action: session.onSave)
+            icon("pin", help: t("Pin (P)"), action: session.onPin)
+            icon("xmark", help: t("Close (Esc)"), action: session.onClose)
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
@@ -402,7 +403,7 @@ struct CaptureToolbarView: View {
                         .frame(width: 26, height: 26)
                 }
                 .buttonStyle(.plain)
-                .help("Color")
+                .help(t("Color"))
                 .accessibilityLabel("Annotation color")
                 .popover(isPresented: $showColors, arrowEdge: .bottom) {
                     HStack(spacing: 9) {
@@ -450,22 +451,22 @@ struct CaptureToolbarView: View {
             lineWidthSlider
         case .text:
             ForEach([CGFloat(0.016), 0.022, 0.030], id: \.self) { size in
-                optionButton("Text size \(Int(size * 1000))", selected: session.activeStyle.textScale == size) { session.activeStyle.textScale = size } label: {
+                optionButton(tf("Text size %d", Int(size * 1000)), selected: session.activeStyle.textScale == size) { session.activeStyle.textScale = size } label: {
                     Text("A").font(.system(size: size * 600 + 4, weight: .medium))
                 }
             }
             Divider().frame(height: 18)
-            optionIcon("text.bubble", "Bubble background", selected: session.activeStyle.textBubble) { session.activeStyle.textBubble.toggle() }
+            optionIcon("text.bubble", t("Bubble background"), selected: session.activeStyle.textBubble) { session.activeStyle.textBubble.toggle() }
         case .number:
-            optionIcon("1.circle", "Circle marker", selected: session.activeStyle.numberStyle == .circle) { session.activeStyle.numberStyle = .circle }
-            optionIcon("1.square", "Square marker", selected: session.activeStyle.numberStyle == .square) { session.activeStyle.numberStyle = .square }
+            optionIcon("1.circle", t("Circle marker"), selected: session.activeStyle.numberStyle == .circle) { session.activeStyle.numberStyle = .circle }
+            optionIcon("1.square", t("Square marker"), selected: session.activeStyle.numberStyle == .square) { session.activeStyle.numberStyle = .square }
         case .mosaic, .blur:
             Image(systemName: tool.symbol).frame(width: 26)
-            optionSlider("Strength", value: session.styleBinding(\.mosaicBlock), range: 6...32)
+            optionSlider(t("Strength"), value: session.styleBinding(\.mosaicBlock), range: 6...32)
         case .highlighter:
             lineWidthSlider
             Image(systemName: "circle.lefthalf.filled").frame(width: 22)
-            optionSlider("Opacity", value: session.styleBinding(\.highlighterAlpha), range: 0.15...0.7)
+            optionSlider(t("Opacity"), value: session.styleBinding(\.highlighterAlpha), range: 0.15...0.7)
         case .line, .pen:
             patternControls
             lineWidthSlider
@@ -478,7 +479,7 @@ struct CaptureToolbarView: View {
         HStack(spacing: 3) {
             Divider().frame(height: 18)
             Image(systemName: "lineweight").frame(width: 23)
-            optionSlider("Line width", value: session.styleBinding(\.lineWidth), range: 0.0015...0.016)
+            optionSlider(t("Line width"), value: session.styleBinding(\.lineWidth), range: 0.0015...0.016)
         }
     }
 
@@ -486,7 +487,7 @@ struct CaptureToolbarView: View {
         HStack(spacing: 3) {
             Divider().frame(height: 18)
             ForEach(LinePattern.allCases, id: \.self) { pattern in
-                optionButton(String(describing: pattern).capitalized + " line", selected: session.activeStyle.linePattern == pattern) { session.activeStyle.linePattern = pattern } label: {
+                optionButton(tf("%@ line", t(String(describing: pattern).capitalized)), selected: session.activeStyle.linePattern == pattern) { session.activeStyle.linePattern = pattern } label: {
                     LinePatternIcon(pattern: pattern).frame(width: 22, height: 18)
                 }
             }
@@ -563,8 +564,8 @@ struct CaptureToolbarView: View {
                 }
                 .buttonStyle(.plain)
                 .help(session.watermarkHidden
-                    ? "Watermark hidden; text is kept in the file metadata"
-                    : "Hide the watermark but keep its text")
+                    ? t("Watermark hidden; text is kept in the file metadata")
+                    : t("Hide the watermark but keep its text"))
 
                 Button {
                     showWatermarkSettings.toggle()
@@ -575,7 +576,7 @@ struct CaptureToolbarView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("Watermark position, size, rotation and opacity")
+                .help(t("Watermark position, size, rotation and opacity"))
                 .popover(isPresented: $showWatermarkSettings, arrowEdge: .bottom) {
                     WatermarkSettingsView(session: session)
                 }
@@ -610,7 +611,7 @@ private struct WatermarkSettingsView: View {
             Text("Watermark")
                 .font(.headline)
 
-            TextField("Watermark text", text: $session.watermarkText)
+            TextField(t("Watermark text"), text: $session.watermarkText)
                 .textFieldStyle(.roundedBorder)
 
             Picker("Position", selection: $session.watermarkPlacement) {
@@ -621,28 +622,28 @@ private struct WatermarkSettingsView: View {
             .pickerStyle(.menu)
 
             sliderRow(
-                "Size",
+                t("Size"),
                 value: $session.watermarkScale,
                 range: 0.01...0.06,
                 text: String(format: "%.1f%%", session.watermarkScale * 100)
             )
 
             sliderRow(
-                "Angle",
+                t("Angle"),
                 value: $session.watermarkRotation,
                 range: -90...90,
                 text: "\(Int(session.watermarkRotation))°"
             )
 
             sliderRow(
-                "Opacity",
+                t("Opacity"),
                 value: $session.watermarkOpacity,
                 range: 0.15...1,
                 text: "\(Int(session.watermarkOpacity * 100))%"
             )
 
             HStack(spacing: 8) {
-                Text("Color")
+                Text(t("Color"))
                     .frame(width: 54, alignment: .leading)
                     .foregroundStyle(.secondary)
 

@@ -13,7 +13,11 @@ public final class QuitAllAppsSwitch {
 
     public var subtitle: String? {
         let count = targetCount
-        return count == 0 ? "No apps" : "\(count) apps"
+        switch count {
+        case 0: return t("No apps")
+        case 1: return t("1 app")
+        default: return tf("%d apps", count)
+        }
     }
 
     private var quitTargets: [NSRunningApplication] {

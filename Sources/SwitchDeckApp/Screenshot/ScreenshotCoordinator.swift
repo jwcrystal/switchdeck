@@ -20,7 +20,7 @@ final class ScreenshotCoordinator {
     var switchItem: SwitchItem {
         SwitchItem(
             id: Self.id,
-            title: "Screenshot",
+            title: t("Screenshot"),
             symbolName: "camera.viewfinder",
             kind: .action,
             perform: { [weak self] in self?.begin() }
@@ -227,7 +227,7 @@ final class ScreenshotCoordinator {
             } else if let region = await captureRegion(payload.rect, payload.screen) {
                 cropped = region
             } else {
-                throw ScreenCaptureService.CaptureError.captureFailed("The selected area was empty.")
+                throw ScreenCaptureService.CaptureError.captureFailed(t("The selected area was empty."))
             }
 
             let visibleWatermark = payload.watermarkVisible ? payload.watermark : nil
@@ -308,12 +308,12 @@ final class ScreenshotCoordinator {
 
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Screenshot"
+        alert.messageText = t("Screenshot")
         alert.informativeText = error.localizedDescription
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: t("OK"))
 
         if case ScreenCaptureService.CaptureError.permission = error {
-            alert.addButton(withTitle: "Open Privacy Settings")
+            alert.addButton(withTitle: t("Open Privacy Settings"))
             if alert.runModal() == .alertSecondButtonReturn {
                 let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
                 NSWorkspace.shared.open(url)
@@ -420,7 +420,7 @@ final class CaptureCountdown {
     }
 
     private func update(_ seconds: Int) {
-        label?.stringValue = "Screenshot in \(seconds)…"
+        label?.stringValue = tf("Screenshot in %d…", seconds)
     }
 
     private func close() {
@@ -446,10 +446,10 @@ private final class PinnedWindow: NSWindow {
     override func rightMouseDown(with event: NSEvent) {
         guard let contentView else { return }
         let menu = NSMenu()
-        menu.addItem(withTitle: "Copy", action: #selector(copyImage), keyEquivalent: "c").target = self
-        menu.addItem(withTitle: "50% Opacity", action: #selector(toggleHalfOpacity), keyEquivalent: "").target = self
+        menu.addItem(withTitle: t("Copy"), action: #selector(copyImage), keyEquivalent: "c").target = self
+        menu.addItem(withTitle: t("50% Opacity"), action: #selector(toggleHalfOpacity), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Close", action: #selector(closeSelf), keyEquivalent: "").target = self
+        menu.addItem(withTitle: t("Close"), action: #selector(closeSelf), keyEquivalent: "").target = self
         NSMenu.popUpContextMenu(menu, with: event, for: contentView)
     }
 

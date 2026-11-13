@@ -22,14 +22,14 @@ public final class KeyboardLockSwitch {
 
     public var subtitle: String? {
         guard isLocked else { return nil }
-        return "Auto-unlock 5m"
+        return t("Auto-unlock 5m")
     }
 
     public func lock() throws {
         guard !isLocked else { return }
         guard ensureAccessibility() else {
             throw SwitchDeckError.message(
-                "SwitchDeck needs Accessibility permission to block the keyboard. Open SwitchDeck › Permissions… and grant it once — after that this switch works without asking again."
+                t("SwitchDeck needs Accessibility permission to block the keyboard. Open SwitchDeck › Permissions… and grant it once — after that this switch works without asking again.")
             )
         }
 
@@ -48,11 +48,11 @@ public final class KeyboardLockSwitch {
             },
             userInfo: nil
         ) else {
-            throw SwitchDeckError.message("Could not create the keyboard event tap.")
+            throw SwitchDeckError.message(t("Could not create the keyboard event tap."))
         }
 
         guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
-            throw SwitchDeckError.message("Could not attach the keyboard event tap to the run loop.")
+            throw SwitchDeckError.message(t("Could not attach the keyboard event tap to the run loop."))
         }
 
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
