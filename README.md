@@ -1,5 +1,7 @@
 # SwitchDeck
 
+**English** · [繁體中文](README.zh-TW.md)
+
 A macOS menu-bar app with sixteen one-click system switches and a built-in screenshot editor. Native Swift on AppKit and SwiftUI, built from source with SwiftPM, no third-party dependencies, no App Store sandbox.
 
 <p align="center"><img src="docs/images/menu.png" width="360" alt="The SwitchDeck menu: switch rows with their live state, then Permissions, Settings and Quit"></p>
@@ -47,9 +49,11 @@ Launch at login needs the app in `/Applications`; until then the toggle in Setti
 
 Settings › Customize reorders and hides switches; the choice is stored in `~/Library/Application Support/SwitchDeck/config.json`. Rows are dragged into place; a context menu offers Move Up / Move Down / Show in Menu for keyboard use.
 
+Settings › Screenshot holds the capture shortcut, the save folder and the file-name prefix next to each other, so screenshot configuration is not scattered across panes.
+
 ## Screenshot editor
 
-- `⌥E` starts a capture (installed once as a default; change it in Settings › Shortcuts).
+- `⌥E` starts a capture (installed once as a default; change it in Settings › Screenshot).
 - Dragging a region enters editing **in place**: the selection stays on screen, everything outside dims, and the toolbar appears under the region — no second window. Clicking a window edits at that window's frame; `F` selects the whole screen; `R` restores the last region.
 - The default tool is Select. With a tool active, dragging inside draws: rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (S/M/L, optional bubble), numbered markers, mosaic and blur.
 - The region keeps its eight handles while editing, so it can still be resized; while dragging, the live screen shows through and the frozen image is refreshed on release.
@@ -59,7 +63,7 @@ Settings › Customize reorders and hides switches; the choice is stored in `~/L
 - With Select, clicking an existing mark edits that object instead of the next one: the options row shows its own colour, stroke, fill, arrow path, text size/bubble or marker shape, changes apply live, and the same values become the default for new marks. Dragging and the eight handles still move or resize it.
 - The signature button adds a watermark (the macOS full user name); its popover edits the text, colour, position (four corners, centre or a tiled pattern), size (S/M/L), angle (0/30/45°) and opacity. It is clipped to the capture, so a rotated or tiled watermark never spills outside the selection. The eye-slash button hides it from the image but keeps the text in the PNG metadata.
 - **Scrolling capture is paused in this build**: the toolbar shows no vertical/horizontal entry, the capture callback and debug route refuse to start it, and the stitching engine stays in the source but cannot be reached from the app. Normal region, window and full-screen capture, annotation, copy, save and pin are unaffected.
-- `Enter` copies, `Space` saves a PNG straight into `~/Downloads` as `SwitchDeck Screenshot <date>.png` (folder and prefix are the UserDefaults keys that Settings will expose), `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo edits, `Esc` closes.
+- `Enter` copies, `Space` saves a PNG into the folder chosen in Settings › Screenshot (`~/Downloads` by default) as `SwitchDeck Screenshot <date>.png`, `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo edits, `Esc` closes.
 - Pinned images: the corner × or `Esc` closes, scroll resizes, `⌘`-scroll changes opacity, right-click has Copy / 50% Opacity / Close.
 
 ## Permissions
