@@ -392,7 +392,13 @@ final class ScreenshotCoordinator {
 
         let preview = NSImage(cgImage: image, size: .zero)
         guard ScreenshotPreferences.silentRecognition else {
-            recognitionWindow.show(image: preview, result: result)
+            var autoCopied = false
+            if ScreenshotPreferences.autoCopyRecognition, let text = result.clipboardText {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+                autoCopied = true
+            }
+            recognitionWindow.show(image: preview, result: result, autoCopied: autoCopied)
             return
         }
 

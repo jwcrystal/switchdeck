@@ -41,7 +41,7 @@ Needs macOS 14 or later and the Xcode command line tools (`swift --version` shou
 
 ```bash
 git clone https://github.com/jwcrystal/switchdeck.git && cd switchdeck
-swift test                      # 132 tests, no UI needed
+swift test                      # 159 tests, no UI needed
 ./scripts/build-app.sh          # builds build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -76,7 +76,7 @@ How each one is implemented is listed under [Development](#how-each-switch-works
 
 Settings › Customize reorders and hides switches; the choice is stored in `~/Library/Application Support/SwitchDeck/config.json`. Rows are dragged into place; a context menu offers Move Up / Move Down / Show in Menu for keyboard use.
 
-Settings › Screenshot gathers everything about a capture — shortcut, delay, colour-readout format, save folder, file-name prefix, image format and signature defaults — Settings › Recognize Text holds the text-recognition shortcut and Silent recognition, and Settings › Recording does the same for audio.
+Settings › Screenshot gathers everything about a capture — shortcut, delay, colour-readout format, save folder, file-name prefix, image format and signature defaults — Settings › Recognize Text holds the text-recognition shortcut, Silent recognition and Auto copy, and Settings › Recording does the same for audio.
 
 Settings › Recording picks the folder and the microphone. `AVAudioRecorder` only records from the macOS default input, so a chosen microphone becomes the default for as long as a recording runs, and the previous device is restored on stop or quit.
 

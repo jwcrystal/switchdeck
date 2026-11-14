@@ -269,3 +269,6 @@
 "The update server sent an unexpected response." = "更新伺服器回應的內容無法辨識。";
 "The update server sent a version number that could not be read." = "更新伺服器提供的版本號無法辨識。";
 "The current version number could not be read." = "目前版本號無法辨識。";
+"Auto copy" = "自動複製";
+"Also copy the text when the result window opens. Silent recognition always copies." = "開啟結果視窗時也一併複製文字。靜默辨識一律會複製。";
+"Copied automatically" = "已自動複製";

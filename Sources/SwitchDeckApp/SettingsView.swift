@@ -789,6 +789,7 @@ private struct TextRecognitionPane: View {
     @ObservedObject var model: AppModel
 
     @AppStorage(ScreenshotPreferences.silentRecognitionKey) private var silentRecognition = false
+    @AppStorage(ScreenshotPreferences.autoCopyRecognitionKey) private var autoCopyRecognition = false
 
     var body: some View {
         ScrollView {
@@ -833,6 +834,24 @@ private struct TextRecognitionPane: View {
                             Toggle("", isOn: $silentRecognition)
                                 .toggleStyle(.switch)
                                 .labelsHidden()
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "doc.on.doc")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("Auto copy"))
+                                Text(t("Also copy the text when the result window opens. Silent recognition always copies."))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $autoCopyRecognition)
+                                .toggleStyle(.switch)
+                                .labelsHidden()
+                                .disabled(silentRecognition)
                         }
                         .padding(.vertical, 6)
 

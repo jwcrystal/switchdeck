@@ -19,6 +19,14 @@ enum ScreenshotPreferences {
     static let watermarkTextKey = "ScreenshotWatermarkText"
     static let watermarkDefaultKey = "ScreenshotWatermarkDefault"
     static let silentRecognitionKey = "TextRecognitionSilent"
+    static let autoCopyRecognitionKey = "TextRecognitionAutoCopy"
+
+    /// The result window also copies the text as it opens, so a quick look
+    /// needs no extra click. Off by default; silent recognition always copies.
+    static var autoCopyRecognition: Bool {
+        get { UserDefaults.standard.bool(forKey: autoCopyRecognitionKey) }
+        set { UserDefaults.standard.set(newValue, forKey: autoCopyRecognitionKey) }
+    }
 
     /// Text recognition copies straight to the clipboard and shows a toast
     /// instead of opening the result window. Off by default.

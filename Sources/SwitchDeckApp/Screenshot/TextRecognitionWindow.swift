@@ -16,12 +16,15 @@ final class TextRecognitionWindowController: NSObject, NSWindowDelegate {
     private var panel: RecognitionPanel?
     private var model: RecognitionTextModel?
 
-    func show(image: NSImage, result: TextRecognizer.Result) {
+    /// `autoCopied` says the text is already on the clipboard, which the
+    /// window mentions; a toast click passes false.
+    func show(image: NSImage, result: TextRecognizer.Result, autoCopied: Bool = false) {
         let panel = self.panel ?? makePanel()
         self.panel = panel
 
-        let layout = RecognitionLayout(image: image, screen: NSScreen.main)
-        let model = RecognitionTextModel(text: Self.initialText(for: result))
+        let initialText = Self.initialText(for: result)
+        let layout = RecognitionLayout(image: image, text: initialText, screen: NSScreen.main)
+        let model = RecognitionTextModel(text: initialText)
         model.onClose = { [weak panel] in panel?.close() }
         self.model = model
         panel.onCopy = { [weak model] in model?.copyAndClose() }
@@ -30,6 +33,7 @@ final class TextRecognitionWindowController: NSObject, NSWindowDelegate {
             image: image,
             layout: layout,
             link: TextRecognizer.openableLink(in: result.codes),
+            autoCopied: autoCopied,
             model: model
         )
         panel.contentView = NSHostingView(rootView: view)
@@ -68,7 +72,7 @@ final class TextRecognitionWindowController: NSObject, NSWindowDelegate {
         panel.becomesKeyOnlyIfNeeded = false
         panel.hidesOnDeactivate = false
         panel.isFloatingPanel = true
-        panel.minSize = NSSize(width: 480, height: 300)
+        panel.minSize = NSSize(width: RecognitionLayout.minWidth, height: 200)
         panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.delegate = self
         return panel
@@ -135,34 +139,58 @@ final class RecognitionPanel: NSPanel {
 // MARK: - Layout
 
 /// Wide captures (a line of text) stack the image above the text; others put
-/// it beside the text. The window starts at a size that fits the image.
-struct RecognitionLayout {
+/// it beside the text. The window opens at a size that fits both the image and
+/// the number of recognised lines, so a single line gets a small window; the
+/// user can still resize it.
+struct RecognitionLayout: Equatable {
+    /// Image padding on each side, matching `imagePane`.
+    static let imagePadding: CGFloat = 16
+    /// Bottom bar plus the two dividers.
+    static let chromeHeight: CGFloat = 48
+    static let minWidth: CGFloat = 480
+    static let minTextHeight: CGFloat = 84
+    static let maxTextHeight: CGFloat = 320
+    static let sideTextWidth: CGFloat = 340
+
     let stacked: Bool
     let imageSize: CGSize
+    let textHeight: CGFloat
     let windowSize: NSSize
 
-    init(image: NSImage, screen: NSScreen?) {
-        let scale = screen?.backingScaleFactor ?? 2
-        let points = CGSize(width: image.size.width / scale, height: image.size.height / scale)
-        let visible = screen?.visibleFrame.size ?? CGSize(width: 1440, height: 900)
+    init(image: NSImage, text: String, screen: NSScreen?) {
+        self.init(
+            imagePixels: image.size,
+            scale: screen?.backingScaleFactor ?? 2,
+            visible: screen?.visibleFrame.size ?? CGSize(width: 1440, height: 900),
+            lineCount: TextRecognizer.counts(text).lines
+        )
+    }
+
+    init(imagePixels: CGSize, scale: CGFloat, visible: CGSize, lineCount: Int) {
+        let points = CGSize(width: imagePixels.width / max(scale, 1), height: imagePixels.height / max(scale, 1))
         let aspect = points.width / max(points.height, 1)
+        let padding = Self.imagePadding * 2
+
+        // About 18 pt a line, the text insets, and the count row underneath.
+        textHeight = min(max(CGFloat(max(lineCount, 1)) * 18 + 20 + 28, Self.minTextHeight), Self.maxTextHeight)
 
         stacked = aspect >= 1.6
         if stacked {
-            let height = min(points.height, 220)
-            let width = min(points.height > 0 ? points.width * height / points.height : points.width, 900)
+            let maxWidth = min(900, visible.width * 0.8 - padding)
+            let width = min(points.width, maxWidth, points.height > 0 ? 200 * aspect : points.width)
             imageSize = CGSize(width: width, height: width / max(aspect, 0.01))
             windowSize = NSSize(
-                width: min(max(imageSize.width + 48, 560), visible.width * 0.8),
-                height: min(imageSize.height + 48 + 220 + 52, visible.height * 0.8)
+                width: min(max(imageSize.width + padding, Self.minWidth), visible.width * 0.8),
+                height: min(imageSize.height + padding + textHeight + Self.chromeHeight, visible.height * 0.8)
             )
         } else {
-            let height = min(points.height, 520, visible.height * 0.7)
-            let width = min(points.width * height / max(points.height, 1), 420)
+            let maxHeight = min(520, visible.height * 0.7)
+            let height = min(points.height, maxHeight)
+            let width = min(height * aspect, 420)
             imageSize = CGSize(width: width, height: width / max(aspect, 0.01))
             windowSize = NSSize(
-                width: min(imageSize.width + 48 + 400, visible.width * 0.8),
-                height: min(max(imageSize.height + 48 + 52, 360), visible.height * 0.8)
+                width: min(max(imageSize.width + padding + Self.sideTextWidth, Self.minWidth), visible.width * 0.8),
+                height: min(max(imageSize.height + padding, textHeight) + Self.chromeHeight, visible.height * 0.8)
             )
         }
     }
@@ -257,6 +285,7 @@ private struct TextRecognitionView: View {
     let image: NSImage
     let layout: RecognitionLayout
     let link: URL?
+    let autoCopied: Bool
     @ObservedObject var model: RecognitionTextModel
 
     @AppStorage(ScreenshotPreferences.silentRecognitionKey) private var silent = false
@@ -267,14 +296,14 @@ private struct TextRecognitionView: View {
                 VStack(spacing: 0) {
                     imagePane
                         .frame(maxWidth: .infinity)
-                        .frame(height: layout.imageSize.height + 32)
+                        .frame(height: layout.imageSize.height + RecognitionLayout.imagePadding * 2)
                     Divider()
                     textPane
                 }
             } else {
                 HStack(spacing: 0) {
                     imagePane
-                        .frame(width: layout.imageSize.width + 32)
+                        .frame(width: layout.imageSize.width + RecognitionLayout.imagePadding * 2)
                         .frame(maxHeight: .infinity)
                     Divider()
                     textPane
@@ -293,7 +322,7 @@ private struct TextRecognitionView: View {
             .scaledToFit()
             .frame(maxWidth: layout.imageSize.width, maxHeight: layout.imageSize.height)
             .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
-            .padding(16)
+            .padding(RecognitionLayout.imagePadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(nsColor: .windowBackgroundColor))
     }
@@ -317,6 +346,11 @@ private struct TextRecognitionView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
+                if autoCopied {
+                    Label(t("Copied automatically"), systemImage: "checkmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button(t("Join Lines")) { model.joinLines() }
                     .buttonStyle(.borderless)
