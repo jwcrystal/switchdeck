@@ -391,6 +391,18 @@ final class ScreenshotCoordinator {
         }
 
         let preview = NSImage(cgImage: image, size: .zero)
+
+        // A QR link set to open skips the window: open it, copy it, say so.
+        if ScreenshotPreferences.qrLinkAction == .open, let link = TextRecognizer.openableLink(in: result.codes) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(link.absoluteString, forType: .string)
+            NSWorkspace.shared.open(link)
+            RecognitionToast.show(t("Opened QR link"), detail: link.absoluteString) { [weak self] in
+                self?.recognitionWindow.show(image: preview, result: result)
+            }
+            return
+        }
+
         guard ScreenshotPreferences.silentRecognition else {
             var autoCopied = false
             if ScreenshotPreferences.autoCopyRecognition, let text = result.clipboardText {

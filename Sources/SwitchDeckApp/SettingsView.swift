@@ -790,6 +790,8 @@ private struct TextRecognitionPane: View {
 
     @AppStorage(ScreenshotPreferences.silentRecognitionKey) private var silentRecognition = false
     @AppStorage(ScreenshotPreferences.autoCopyRecognitionKey) private var autoCopyRecognition = false
+    @AppStorage(ScreenshotPreferences.qrLinkActionKey) private var qrLinkAction = ScreenshotPreferences.QRLinkAction.copy.rawValue
+    @AppStorage(ScreenshotPreferences.toastSecondsKey) private var toastSeconds = ScreenshotPreferences.defaultToastSeconds
 
     var body: some View {
         ScrollView {
@@ -852,6 +854,48 @@ private struct TextRecognitionPane: View {
                                 .toggleStyle(.switch)
                                 .labelsHidden()
                                 .disabled(silentRecognition)
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "qrcode")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("QR link action"))
+                                Text(t("When a QR code holds a web link: copy it, or open it in the browser as well."))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Picker("", selection: $qrLinkAction) {
+                                Text(t("Copy")).tag(ScreenshotPreferences.QRLinkAction.copy.rawValue)
+                                Text(t("Open")).tag(ScreenshotPreferences.QRLinkAction.open.rawValue)
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .frame(width: 140)
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "bell")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("Notification duration"))
+                                Text(t("How long the notice after a silent recognition or an opened link stays on screen."))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Picker("", selection: $toastSeconds) {
+                                ForEach(ScreenshotPreferences.toastSecondsChoices, id: \.self) { seconds in
+                                    Text(tf("%d s", seconds)).tag(seconds)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 90)
                         }
                         .padding(.vertical, 6)
 

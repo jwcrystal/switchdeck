@@ -20,6 +20,35 @@ enum ScreenshotPreferences {
     static let watermarkDefaultKey = "ScreenshotWatermarkDefault"
     static let silentRecognitionKey = "TextRecognitionSilent"
     static let autoCopyRecognitionKey = "TextRecognitionAutoCopy"
+    static let qrLinkActionKey = "TextRecognitionQRLinkAction"
+    static let toastSecondsKey = "TextRecognitionToastSeconds"
+
+    /// What happens when the recognised QR code is an http(s) link.
+    enum QRLinkAction: String, CaseIterable, Identifiable {
+        /// Copy it like any other result (the default).
+        case copy
+        /// Open it in the default browser, and copy it as well.
+        case open
+
+        var id: String { rawValue }
+    }
+
+    static var qrLinkAction: QRLinkAction {
+        get { QRLinkAction(rawValue: UserDefaults.standard.string(forKey: qrLinkActionKey) ?? "") ?? .copy }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: qrLinkActionKey) }
+    }
+
+    /// Choices offered for how long a recognition toast stays up.
+    static let toastSecondsChoices = [2, 3, 5, 8]
+    static let defaultToastSeconds = 3
+
+    static var toastSeconds: Int {
+        get {
+            let stored = UserDefaults.standard.integer(forKey: toastSecondsKey)
+            return toastSecondsChoices.contains(stored) ? stored : defaultToastSeconds
+        }
+        set { UserDefaults.standard.set(newValue, forKey: toastSecondsKey) }
+    }
 
     /// The result window also copies the text as it opens, so a quick look
     /// needs no extra click. Off by default; silent recognition always copies.

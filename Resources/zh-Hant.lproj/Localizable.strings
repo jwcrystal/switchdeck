@@ -272,3 +272,10 @@
 "Auto copy" = "自動複製";
 "Also copy the text when the result window opens. Silent recognition always copies." = "開啟結果視窗時也一併複製文字。靜默辨識一律會複製。";
 "Copied automatically" = "已自動複製";
+"%d s" = "%d 秒";
+"Notification duration" = "通知顯示時間";
+"How long the notice after a silent recognition or an opened link stays on screen." = "靜默辨識或開啟連結後，提示要在螢幕上停留多久。";
+"Open" = "開啟";
+"Opened QR link" = "已開啟 QR 碼連結";
+"QR link action" = "QR 連結動作";
+"When a QR code holds a web link: copy it, or open it in the browser as well." = "QR 碼內容是網址時：只複製，或同時用瀏覽器開啟。";

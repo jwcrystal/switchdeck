@@ -410,7 +410,12 @@ enum RecognitionToast {
         return String(flat.prefix(limit)) + "…"
     }
 
-    static func show(_ title: String, detail: String?, onClick: @escaping () -> Void) {
+    static func show(
+        _ title: String,
+        detail: String?,
+        seconds: Int = ScreenshotPreferences.toastSeconds,
+        onClick: @escaping () -> Void
+    ) {
         let panel = ClickablePanel(
             contentRect: NSRect(x: 0, y: 0, width: 360, height: 56),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -441,7 +446,7 @@ enum RecognitionToast {
         panels.append(panel)
 
         Task { @MainActor [weak panel] in
-            try? await Task.sleep(nanoseconds: 3_500_000_000)
+            try? await Task.sleep(nanoseconds: UInt64(max(seconds, 1)) * 1_000_000_000)
             if let panel { dismiss(panel) }
         }
     }
