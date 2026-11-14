@@ -160,11 +160,12 @@ private struct GeneralPane: View {
 
                         PermissionStatusRow(
                             title: t("Screen Recording"),
-                            detail: t("Screenshot. macOS applies the grant after a relaunch."),
+                            detail: t("Screenshot and Recognize Text. macOS applies the grant after a relaunch."),
                             granted: permissions.screenRecording,
                             grantTitle: t("Grant"),
                             onGrant: { permissions.requestScreenRecording() },
-                            onOpenSettings: { permissions.openPrivacyPane("Privacy_ScreenCapture") }
+                            onOpenSettings: { permissions.openPrivacyPane("Privacy_ScreenCapture") },
+                            onRelaunch: permissions.screenRecordingRequested ? { AppLanguage.relaunch() } : nil
                         )
 
                         RowDivider()
@@ -195,7 +196,7 @@ private struct GeneralPane: View {
                             title: t("Microphone"),
                             detail: t("Recording."),
                             granted: permissions.microphone == .authorized,
-                            grantTitle: t("Allow"),
+                            grantTitle: t("Grant"),
                             onGrant: { permissions.requestMicrophone() },
                             onOpenSettings: { permissions.openPrivacyPane("Privacy_Microphone") }
                         )
@@ -344,7 +345,7 @@ private struct CustomizePane: View {
                         Button(t("Move Up")) { model.move(item.id, by: -1) }
                         Button(t("Move Down")) { model.move(item.id, by: 1) }
                         Divider()
-                        Button(model.config.isEnabled(item.id) ? "Hide from Menu" : "Show in Menu") {
+                        Button(model.config.isEnabled(item.id) ? t("Hide from Menu") : t("Show in Menu")) {
                             model.setEnabled(item.id, !model.config.isEnabled(item.id))
                         }
                     }

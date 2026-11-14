@@ -82,12 +82,9 @@
 "Automation — Finder" = "自動化 — Finder";
 "Empty Trash and its item count." = "清空垃圾桶與項目計數。";
 "Screen Recording" = "螢幕錄製";
-"Screenshot. macOS applies the grant after a relaunch." = "截圖。macOS 會在重新啟動後套用授權。";
 "Microphone" = "麥克風";
 "Recording." = "錄音。";
-"Allow" = "允許";
 "Grants survive rebuilds: the app is signed with a local identity, so macOS keeps recognising it." = "授權在重建後仍然有效：app 用本機身分簽章，macOS 會一直認得它。";
-"Not Now" = "以後再說";
 "Done" = "完成";
 "General" = "一般";
 "Customize" = "自訂";
@@ -279,3 +276,10 @@
 "Opened QR link" = "已開啟 QR 碼連結";
 "QR link action" = "QR 連結動作";
 "When a QR code holds a web link: copy it, or open it in the browser as well." = "QR 碼內容是網址時：只複製，或同時用瀏覽器開啟。";
+
+"Screenshot and Recognize Text. macOS applies the grant after a relaunch." = "截圖與文字辨識。macOS 會在重新啟動後套用授權。";
+"Relaunch" = "重新啟動";
+"macOS applies the Screen Recording grant after SwitchDeck relaunches." = "SwitchDeck 重新啟動後，macOS 才會套用螢幕錄製授權。";
+"This build is ad-hoc signed, so macOS may ask for these grants again after an update." = "這個版本使用 ad-hoc 簽章，更新後 macOS 可能會再次詢問這些授權。";
+"Reopen this window any time from Permissions… in the menu." = "隨時可從選單的「權限…」重新開啟此視窗。";
+"%@ is allowed." = "%@ 已允許。";

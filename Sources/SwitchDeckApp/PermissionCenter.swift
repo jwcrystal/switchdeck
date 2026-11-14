@@ -18,6 +18,7 @@ final class PermissionCenter: ObservableObject {
     @Published private(set) var accessibility = false
     @Published private(set) var microphone: AVAuthorizationStatus = .notDetermined
     @Published private(set) var screenRecording = false
+    @Published private(set) var screenRecordingRequested = false
     @Published private(set) var systemEvents: AutomationState = .unknown
     @Published private(set) var finder: AutomationState = .unknown
     /// Result of the last "Grant" attempt, shown under the rows.
@@ -103,6 +104,7 @@ final class PermissionCenter: ObservableObject {
     }
 
     func requestScreenRecording() {
+        screenRecordingRequested = true
         _ = CGRequestScreenCaptureAccess()
         refresh()
     }
@@ -120,7 +122,7 @@ final class PermissionCenter: ObservableObject {
             // A successful send is the ground truth, even if the query API
             // lags behind right after a grant.
             setAutomationState(.granted, for: bundleID)
-            automationMessage = "\(Self.displayName(for: bundleID)) is allowed."
+            automationMessage = tf("%@ is allowed.", Self.displayName(for: bundleID))
         } catch {
             refresh()
             automationMessage = "\(Self.displayName(for: bundleID)): \(error.localizedDescription)"
@@ -156,6 +158,7 @@ final class PermissionCenter: ObservableObject {
     }
 
     func openPrivacyPane(_ pane: String) {
+        if pane == "Privacy_ScreenCapture" { screenRecordingRequested = true }
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!
         NSWorkspace.shared.open(url)
     }

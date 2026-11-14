@@ -11,6 +11,7 @@ struct PermissionStatusRow: View {
     let grantTitle: String
     let onGrant: () -> Void
     let onOpenSettings: () -> Void
+    var onRelaunch: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -35,6 +36,11 @@ struct PermissionStatusRow: View {
                     .font(.caption)
                     .foregroundStyle(.green)
             } else {
+                if let onRelaunch {
+                    Button(t("Relaunch"), action: onRelaunch)
+                        .controlSize(.small)
+                        .help(t("macOS applies the Screen Recording grant after SwitchDeck relaunches."))
+                }
                 Button(grantTitle, action: onGrant)
                     .controlSize(.small)
                 Button(action: onOpenSettings) {
@@ -107,11 +113,12 @@ struct SetupView: View {
 
                 PermissionStatusRow(
                     title: t("Screen Recording"),
-                    detail: t("Screenshot. macOS applies the grant after a relaunch."),
+                    detail: t("Screenshot and Recognize Text. macOS applies the grant after a relaunch."),
                     granted: permissions.screenRecording,
                     grantTitle: t("Grant"),
                     onGrant: { permissions.requestScreenRecording() },
-                    onOpenSettings: { permissions.openPrivacyPane("Privacy_ScreenCapture") }
+                    onOpenSettings: { permissions.openPrivacyPane("Privacy_ScreenCapture") },
+                    onRelaunch: permissions.screenRecordingRequested ? { AppLanguage.relaunch() } : nil
                 )
 
                 Divider()
@@ -120,13 +127,15 @@ struct SetupView: View {
                     title: t("Microphone"),
                     detail: t("Recording."),
                     granted: permissions.microphone == .authorized,
-                    grantTitle: t("Allow"),
+                    grantTitle: t("Grant"),
                     onGrant: { permissions.requestMicrophone() },
                     onOpenSettings: { permissions.openPrivacyPane("Privacy_Microphone") }
                 )
             }
 
-            Text(t("Grants survive rebuilds: the app is signed with a local identity, so macOS keeps recognising it."))
+            Text(CodeSignature.isAdHoc
+                 ? t("This build is ad-hoc signed, so macOS may ask for these grants again after an update.")
+                 : t("Grants survive rebuilds: the app is signed with a local identity, so macOS keeps recognising it."))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
 
@@ -138,9 +147,10 @@ struct SetupView: View {
             }
 
             HStack {
-                Button(t("Not Now")) { onClose() }
-                    .buttonStyle(.borderless)
                 Spacer()
+                Text(t("Reopen this window any time from Permissions… in the menu."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Button(t("Done")) { onClose() }
                     .keyboardShortcut(.defaultAction)
             }

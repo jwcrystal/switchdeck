@@ -136,7 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let hosting = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hosting)
-        window.title = "Set up SwitchDeck"
+        window.title = t("Set up SwitchDeck")
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
