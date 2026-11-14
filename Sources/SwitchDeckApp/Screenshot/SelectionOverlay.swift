@@ -1432,8 +1432,17 @@ final class SelectionView: NSView {
         )
     }
 
+    /// Keeps the region on screen and snaps it to whole device pixels. Mouse
+    /// locations can be fractional; a frozen capture drawn into an unaligned
+    /// rect is resampled and looks soft next to the live screen.
     private func clamp(_ rect: CGRect) -> CGRect {
-        rect.intersection(bounds)
+        let clipped = rect.intersection(bounds)
+        guard !clipped.isNull else { return clipped }
+        let scale = max(1, screen.backingScaleFactor)
+        func snap(_ value: CGFloat) -> CGFloat { (value * scale).rounded() / scale }
+        let minX = snap(clipped.minX), minY = snap(clipped.minY)
+        let maxX = snap(clipped.maxX), maxY = snap(clipped.maxY)
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
     private func handleRects(for rect: CGRect) -> [Handle: CGRect] {
