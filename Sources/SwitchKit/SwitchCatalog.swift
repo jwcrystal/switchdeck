@@ -24,6 +24,8 @@ public struct SwitchCatalog {
         let desktopIcons = HideDesktopIconsSwitch()
         let dockAutohide = DockAutohideSwitch()
         let darkMode = DarkModeSwitch()
+        let muteOutput = MuteSwitch(direction: .output)
+        let muteMicrophone = MuteSwitch(direction: .input)
         let pasteboard = EmptyPasteboardSwitch()
         let quitAll = QuitAllAppsSwitch()
         let eject = EjectDiskSwitch()
@@ -102,6 +104,24 @@ public struct SwitchCatalog {
                 kind: .toggle,
                 state: { darkMode.isDark },
                 perform: { try darkMode.toggle() }
+            ),
+            SwitchItem(
+                id: "muteOutput",
+                title: t("Mute Sound"),
+                symbolName: "speaker.slash",
+                kind: .toggle,
+                state: { muteOutput.isMuted },
+                subtitle: { muteOutput.subtitle },
+                perform: { try muteOutput.toggle() }
+            ),
+            SwitchItem(
+                id: "muteMicrophone",
+                title: t("Mute Microphone"),
+                symbolName: "mic.slash",
+                kind: .toggle,
+                state: { muteMicrophone.isMuted },
+                subtitle: { muteMicrophone.subtitle },
+                perform: { try muteMicrophone.toggle() }
             ),
             SwitchItem(
                 id: "lockKeyboard",

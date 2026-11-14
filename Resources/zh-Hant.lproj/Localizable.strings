@@ -10,6 +10,9 @@
 "Active" = "使用中";
 "Keep Awake" = "保持清醒";
 "Dark Mode" = "深色模式";
+"Mute Sound" = "靜音";
+"Mute Microphone" = "麥克風靜音";
+"This device can't be muted." = "這個裝置無法靜音。";
 "Lock Keyboard" = "鎖定鍵盤";
 "Lock Screen" = "鎖定螢幕";
 "Night Shift" = "夜覽";
