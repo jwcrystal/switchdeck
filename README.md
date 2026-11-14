@@ -7,7 +7,7 @@
 [![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#requirements)
 [![License](https://img.shields.io/github/license/jwcrystal/switchdeck)](LICENSE)
 
-Seventeen Mac settings you would otherwise dig through System Settings or Terminal for — hidden files, Keep Awake, Night Shift, Dark Mode, a keyboard lock for wiping the keys, ejecting disks — each one click away in the menu bar. Plus a screenshot tool that lets you annotate right where you captured, without opening a second window, and on-device text and QR-code recognition.
+Eighteen Mac settings you would otherwise dig through System Settings or Terminal for — hidden files, Keep Awake, Night Shift, Dark Mode, a keyboard lock for wiping the keys, ejecting disks — each one click away in the menu bar. Plus a screenshot tool that lets you annotate right where you captured, without opening a second window, and on-device text and QR-code recognition.
 
 Native Swift on AppKit and SwiftUI, no third-party dependencies, free and MIT-licensed.
 
@@ -35,6 +35,8 @@ Needs macOS 14 or later. Download the zip from [Releases](https://github.com/jwc
 
 `xattr -dr com.apple.quarantine /Applications/SwitchDeck.app` does the same from a terminal. Right-click → Open stopped working in macOS 15. Because the signature is ad-hoc, an update can ask for the Accessibility, Automation and Screen Recording grants again; a local build avoids that once `scripts/setup-signing.sh` has run (below).
 
+To see whether a newer release is out, choose **Check for Updates…** in the menu. It compares the running version with the latest GitHub release and offers the download page; SwitchDeck never checks on its own.
+
 ### Build from source
 
 Needs macOS 14 or later and the Xcode command line tools (`swift --version` should report 5.9 or later).
@@ -56,9 +58,12 @@ Launch at login needs the app in `/Applications`; until then the toggle in Setti
 |---|---|---|
 | Show Hidden Files | Shows dotfiles and hidden folders in Finder (Finder restarts) | |
 | Hide Desktop Icons | Clears the desktop for a screen share or a screenshot (Finder restarts) | |
+| Dock Autohide | Hides the Dock until the pointer reaches the screen edge (the Dock restarts) | |
 | Screen Clean | Blacks out every screen and locks the keyboard so both can be wiped | Accessibility |
 | Keep Awake | Keeps the Mac from sleeping, indefinitely or for a set time; Keep Display On also stops the screen from turning off | |
 | Dark Mode | Switches the system appearance | Automation |
+| Mute Sound | Mutes the current output device without touching its volume | |
+| Mute Microphone | Mutes the current input device; the menu says "Not available" when the device has no mute | |
 | Lock Keyboard | Ignores key presses while you clean; unlocks itself after 5 minutes | Accessibility |
 | Lock Screen | Locks the screen immediately | |
 | Night Shift | Turns Night Shift on or off | |
@@ -149,9 +154,11 @@ Tests/ScreenshotTests/         # annotation history, styles, scrolling and stitc
 |---|---|---|
 | Show Hidden Files | `defaults write com.apple.finder AppleShowAllFiles` + Finder restart | Finder restarts |
 | Hide Desktop Icons | `defaults write com.apple.finder CreateDesktop` + Finder restart | Finder restarts; menu says "Icons hidden" |
+| Dock Autohide | `defaults write com.apple.dock autohide` + `killall Dock` | launchd restarts the Dock |
 | Screen Clean | Black overlay on every screen at screen-saver level + keyboard lock | Click once to reveal Stop Clean |
 | Keep Awake | `ProcessInfo.beginActivity` (adds `.idleDisplaySleepDisabled` with Keep Display On), optional duration and expiry in the menu | Shown in `pmset -g assertions` |
 | Dark Mode | System Events appearance preferences | Needs Automation |
+| Mute Sound / Mute Microphone | Core Audio `kAudioDevicePropertyMute` on the default output or input device, falling back to per-channel mute | Volume is never zeroed; a device with no settable mute shows "Not available" |
 | Lock Keyboard | `CGEventTap` swallowing key events, auto-unlocks after 5 min | Needs Accessibility |
 | Lock Screen | private `SACLockScreenImmediate` from `login.framework` | Falls back to ⌃⌘Q via System Events |
 | Night Shift | private `CBBlueLightClient` from `CoreBrightness` (`dlopen`) | No public API; verified on macOS 27 |

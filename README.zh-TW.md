@@ -7,7 +7,7 @@
 [![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#requirements)
 [![License](https://img.shields.io/github/license/jwcrystal/switchdeck)](LICENSE)
 
-平常要翻系統設定、或打開終端機下指令才改得到的 17 個 Mac 設定：顯示隱藏檔、保持清醒、夜覽、深色模式、擦鍵盤用的鍵盤鎖、退出磁碟……全都放在選單列，點一下就切換。另外附一個截圖工具，拍完直接在原地標註，不用再開第二個視窗；也能在本機辨識文字和 QR 碼。
+平常要翻系統設定、或打開終端機下指令才改得到的 18 個 Mac 設定：顯示隱藏檔、保持清醒、夜覽、深色模式、擦鍵盤用的鍵盤鎖、退出磁碟……全都放在選單列，點一下就切換。另外附一個截圖工具，拍完直接在原地標註，不用再開第二個視窗；也能在本機辨識文字和 QR 碼。
 
 原生 Swift（AppKit + SwiftUI），沒有第三方相依，免費、MIT 授權。
 
@@ -35,6 +35,8 @@
 
 也可以在終端機執行 `xattr -dr com.apple.quarantine /Applications/SwitchDeck.app`。macOS 15 之後右鍵→打開已經無效。因為簽章是 ad-hoc，更新後可能會再問一次輔助使用、自動化與螢幕錄製權限；自己在本機建置並跑過 `scripts/setup-signing.sh` 就不會（見下）。
 
+想知道有沒有新版，從選單點「檢查更新…」。它會拿目前版本和 GitHub 上最新的 release 比較，有新版就帶你到下載頁；SwitchDeck 不會自己在背景檢查。
+
 ### 從原始碼建置
 
 需要 macOS 14 以上，以及 Xcode 命令列工具（`swift --version` 應顯示 5.9 以上）。
@@ -56,9 +58,12 @@ open build/SwitchDeck.app
 |---|---|---|
 | 顯示隱藏檔 | 在 Finder 顯示點開頭的檔案與隱藏資料夾（Finder 會重啟） | |
 | 隱藏桌面圖示 | 分享螢幕或截圖前把桌面清乾淨（Finder 會重啟） | |
+| 自動隱藏 Dock | 平常把 Dock 收起來，游標移到螢幕邊緣才出現（Dock 會重啟） | |
 | 螢幕清潔 | 所有螢幕變黑並鎖住鍵盤，方便擦螢幕和鍵盤 | 輔助使用 |
 | 保持清醒 | 讓 Mac 不進入睡眠，可不限時或設定時長；勾選「螢幕保持開啟」連螢幕也不會關 | |
 | 深色模式 | 切換系統外觀 | 自動化 |
+| 靜音 | 把目前的輸出裝置靜音，不動音量 | |
+| 麥克風靜音 | 把目前的輸入裝置靜音；裝置不支援靜音時，選單顯示「無法使用」 | |
 | 鎖定鍵盤 | 清潔時忽略按鍵；5 分鐘後自動解鎖 | 輔助使用 |
 | 鎖定螢幕 | 立刻鎖定螢幕 | |
 | 夜覽（Night Shift） | 開關夜覽 | |
@@ -149,9 +154,11 @@ Tests/ScreenshotTests/         # 標註歷史、樣式、滾動與拼接數學
 |---|---|---|
 | 顯示隱藏檔 | `defaults write com.apple.finder AppleShowAllFiles` + 重啟 Finder | Finder 會重啟 |
 | 隱藏桌面圖示 | `defaults write com.apple.finder CreateDesktop` + 重啟 Finder | Finder 會重啟；選單顯示「Icons hidden」 |
+| 自動隱藏 Dock | `defaults write com.apple.dock autohide` + `killall Dock` | launchd 會把 Dock 重新啟動 |
 | 螢幕清潔 | 每個螢幕覆蓋一層螢幕保護程式層級的黑幕 + 鎖定鍵盤 | 點一下叫出「停止清潔」 |
 | 保持清醒 | `ProcessInfo.beginActivity`（勾選「螢幕保持開啟」時加上 `.idleDisplaySleepDisabled`），可選時長，選單顯示到期時間 | 可用 `pmset -g assertions` 查到 |
 | 深色模式 | 透過 System Events 改外觀偏好 | 需要自動化權限 |
+| 靜音／麥克風靜音 | 對預設輸出或輸入裝置設定 Core Audio 的 `kAudioDevicePropertyMute`，沒有主聲道靜音時改設各聲道 | 不會把音量歸零；裝置不支援靜音時顯示「無法使用」 |
 | 鎖定鍵盤 | `CGEventTap` 吞掉按鍵事件，5 分鐘後自動解鎖 | 需要輔助使用權限 |
 | 鎖定螢幕 | `login.framework` 的私有 API `SACLockScreenImmediate` | 失敗時退回 System Events 的 ⌃⌘Q |
 | 夜覽（Night Shift） | `CoreBrightness` 的私有 API `CBBlueLightClient`（`dlopen`） | 沒有公開 API；已在 macOS 27 驗證 |
