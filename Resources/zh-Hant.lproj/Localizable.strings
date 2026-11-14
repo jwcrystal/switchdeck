@@ -242,3 +242,7 @@
 "Silent recognition next time" = "下次改用靜默辨識";
 "Copy the result and show a short preview instead of opening the result window." = "直接複製結果並顯示簡短預覽，不開啟結果視窗。";
 "Select a region or window and read its text or QR code, on this Mac." = "框選範圍或視窗，在本機辨識其中的文字或 QR 碼。";
+"Result" = "結果";
+"On this Mac" = "在本機執行";
+"Starts a selection from any app; choosing the area runs recognition." = "在任何 App 中開始框選，選好範圍就開始辨識。";
+"Uses the macOS Vision models; nothing is uploaded. Reads Chinese, English, Japanese and Korean, and copies a QR code's content when one is found." = "使用 macOS 內建的 Vision 模型，不會上傳任何資料。可辨識中文、英文、日文與韓文；偵測到 QR 碼時會複製 QR 碼的內容。";

@@ -41,7 +41,7 @@
 
 ```bash
 git clone https://github.com/jwcrystal/switchdeck.git && cd switchdeck
-swift test                      # 125 個測試，不需要 UI
+swift test                      # 126 個測試，不需要 UI
 ./scripts/build-app.sh          # 產出 build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
@@ -76,7 +76,7 @@ open build/SwitchDeck.app
 
 設定 › 自訂可以調整順序與隱藏開關，選擇存在 `~/Library/Application Support/SwitchDeck/config.json`。列可以拖曳排序；右鍵選單提供「上移／下移／在選單中顯示」給鍵盤操作。
 
-設定 › 截圖集中了擷取的所有設定：快速鍵、延遲、取色格式、儲存資料夾、檔名前綴、影像格式與簽名預設；設定 › 錄音則集中處理音訊。
+設定 › 截圖集中了擷取的所有設定：快速鍵、延遲、取色格式、儲存資料夾、檔名前綴、影像格式與簽名預設；設定 › 文字辨識放文字辨識的快速鍵與靜默辨識；設定 › 錄音則集中處理音訊。
 
 設定 › 錄音決定資料夾與麥克風。`AVAudioRecorder` 只能從 macOS 預設輸入錄音，所以選定的麥克風會在錄音期間成為預設，停止或結束 App 時再還原上一個裝置。
 

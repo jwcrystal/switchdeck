@@ -34,12 +34,12 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 
 - Native `NSMenu` list with a right-aligned grey status column, submenus, checkmarks.
 - Global shortcuts: Carbon `RegisterEventHotKey`, inline recorder, in-app and system conflict reporting, shortcut shown in the menu.
-- Sidebar settings: General, Customize, Screenshot, Recording, Shortcuts, About.
+- Sidebar settings: General, Customize, Screenshot, Recognize Text, Recording, Shortcuts, About.
 - Customize: drag to reorder, toggle to hide, context-menu fallback.
 - One-time Setup window for Accessibility, System Events, Finder and Microphone, with live status and per-permission "Grant" / "Settings" actions.
 - Single-instance lock, ad-hoc-free local signing identity that keeps TCC grants across rebuilds.
 - Diagnostics: `--dump`, `--run <id>`, `--menu`, `--hotkeys`, `--permissions`, `--probe-automation`.
-- 125 unit tests: SwitchKit config, ordering, hotkeys, Trash counting, Keep Awake options and text recognition on rendered images, plus screenshot editing, annotation history, capture cropping and scrolling-engine maths.
+- 126 unit tests: SwitchKit config, ordering, hotkeys, Trash counting, Keep Awake options and text recognition on rendered images, plus screenshot editing, annotation history, capture cropping and scrolling-engine maths.
 
 ## Comparison
 
@@ -58,7 +58,7 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Extensibility | Edit Swift sources | Closed | Modular; schedules, Shortcuts, remote |
 | Localisation | English + Traditional Chinese, READMEs and UI | 12+ languages | 20+ languages |
 | Maintained | By whoever builds it | No release since Sep 2023 | Active |
-| Tests / CLI diagnostics | 125 tests, CLI debug modes | None known | Tests for some modules |
+| Tests / CLI diagnostics | 126 tests, CLI debug modes | None known | Tests for some modules |
 | Licence | MIT | Proprietary | MIT |
 
 ## Where SwitchDeck wins

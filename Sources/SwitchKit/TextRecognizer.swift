@@ -37,17 +37,24 @@ public enum TextRecognizer {
     /// release never rejects the request.
     static let preferredLanguages = ["zh-Hant", "zh-Hans", "en-US", "ja-JP", "ko-KR"]
 
+    /// Loads the recognition models with a throwaway request. The first
+    /// request in a process pays for loading them (and, the first time after
+    /// an OS update, for compiling them, which can take tens of seconds), so
+    /// the app calls this at launch and again when a selection starts.
+    public static func warmUp() {
+        guard let context = CGContext(
+            data: nil, width: 64, height: 32, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ) else { return }
+        context.setFillColor(gray: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 64, height: 32))
+        guard let image = context.makeImage() else { return }
+        _ = try? VNImageRequestHandler(cgImage: image, options: [:]).perform([makeTextRequest()])
+    }
+
     /// Runs synchronously; call it off the main thread.
     public static func recognize(_ image: CGImage) throws -> Result {
-        let textRequest = VNRecognizeTextRequest()
-        textRequest.recognitionLevel = .accurate
-        textRequest.usesLanguageCorrection = true
-        textRequest.recognitionLanguages = languages(supported: (try? textRequest.supportedRecognitionLanguages()) ?? [])
-        // With Chinese listed first and no detection, English words get
-        // "corrected" into wrong ones ("reads" -> "reaas"); with English first,
-        // Chinese is dropped. Detection on top of this order reads both.
-        textRequest.automaticallyDetectsLanguage = true
-
+        let textRequest = makeTextRequest()
         let codeRequest = VNDetectBarcodesRequest()
 
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
@@ -60,6 +67,19 @@ public enum TextRecognizer {
         let lines = (textRequest.results ?? []).compactMap { $0.topCandidates(1).first?.string }
         let codes = (codeRequest.results ?? []).compactMap(\.payloadStringValue)
         return Result(lines: lines, codes: unique(codes))
+    }
+
+    /// Accurate level, Chinese before English, with language detection.
+    /// With Chinese first and no detection, English words get "corrected"
+    /// into wrong ones ("reads" -> "reaas"); with English first, Chinese is
+    /// dropped. Detection on top of this order reads both.
+    static func makeTextRequest() -> VNRecognizeTextRequest {
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+        request.recognitionLanguages = languages(supported: (try? request.supportedRecognitionLanguages()) ?? [])
+        request.automaticallyDetectsLanguage = true
+        return request
     }
 
     static func languages(supported: [String]) -> [String] {

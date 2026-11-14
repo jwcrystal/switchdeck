@@ -45,6 +45,8 @@ final class ScreenshotCoordinator {
     /// no editor: choosing the area is the whole interaction.
     func beginTextRecognition() {
         guard !selections.isActive, countdown == nil else { return }
+        // Load the models while the user is still selecting.
+        Task.detached(priority: .userInitiated) { TextRecognizer.warmUp() }
         start(initialSelection: nil, finishOnSelect: .recognizeText)
     }
 

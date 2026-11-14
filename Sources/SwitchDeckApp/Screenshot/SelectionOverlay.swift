@@ -767,11 +767,10 @@ final class SelectionView: NSView {
         editing = true
 
         if let finishOnSelect {
-            // Windows are captured one by one, so wait for that; a plain
-            // region is captured by the coordinator once the overlay is gone.
-            if !windowTargets.isEmpty {
-                loadBase()
-            }
+            // Capture while the overlay is still up: its windows are then
+            // excluded by ID. Capturing after it closes races the window
+            // server and can bake the selection outline into the image.
+            loadBase()
             finish(finishOnSelect)
             return
         }
@@ -932,7 +931,7 @@ final class SelectionView: NSView {
 
     private func finish(_ output: CaptureSession.Output) {
         guard !isFinishing else { return }
-        if !windowTargets.isEmpty, let baseTask {
+        if !windowTargets.isEmpty || finishOnSelect != nil, let baseTask {
             isFinishing = true
             outputTask = Task { [weak self] in
                 await baseTask.value

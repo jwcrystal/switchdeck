@@ -15,7 +15,7 @@ struct SettingsView: View {
     }
 
     enum Pane: String, CaseIterable, Identifiable {
-        case general, customize, screenshot, recording, shortcuts, about
+        case general, customize, screenshot, textRecognition, recording, shortcuts, about
 
         var id: String { rawValue }
 
@@ -24,6 +24,7 @@ struct SettingsView: View {
             case .general: return t("General")
             case .customize: return t("Customize")
             case .screenshot: return t("Screenshot")
+            case .textRecognition: return t("Recognize Text")
             case .recording: return t("Recording")
             case .shortcuts: return t("Shortcuts")
             case .about: return t("About")
@@ -35,6 +36,7 @@ struct SettingsView: View {
             case .general: return "gearshape"
             case .customize: return "slider.horizontal.3"
             case .screenshot: return "camera.viewfinder"
+            case .textRecognition: return "text.viewfinder"
             case .recording: return "record.circle"
             case .shortcuts: return "keyboard"
             case .about: return "info.circle"
@@ -69,6 +71,7 @@ struct SettingsView: View {
         case .general: GeneralPane(permissions: permissions)
         case .customize: CustomizePane(model: model)
         case .screenshot: ScreenshotPane(model: model)
+        case .textRecognition: TextRecognitionPane(model: model)
         case .recording: RecordingPane()
         case .shortcuts: ShortcutsPane(model: model)
         case .about: AboutPane()
@@ -391,7 +394,6 @@ private struct ScreenshotPane: View {
     @AppStorage(ScreenshotPreferences.colorFormatKey) private var colorFormat = 0
     @AppStorage(ScreenshotPreferences.watermarkDefaultKey) private var watermarkDefault = false
     @AppStorage(ScreenshotPreferences.watermarkTextKey) private var watermarkText = ""
-    @AppStorage(ScreenshotPreferences.silentRecognitionKey) private var silentRecognition = false
 
     @State private var folderPath = ScreenshotPreferences.folder.path
 
@@ -425,42 +427,6 @@ private struct ScreenshotPane: View {
                             }
                             Spacer()
                             ShortcutField(model: model, id: ScreenshotCoordinator.id)
-                        }
-                        .padding(.vertical, 6)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionTitle(text: t("Recognize Text"))
-
-                    SettingsCard {
-                        HStack(spacing: 12) {
-                            SymbolTile(symbol: "text.viewfinder")
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(t("Shortcut"))
-                                Text(t("Select a region or window and read its text or QR code, on this Mac."))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            ShortcutField(model: model, id: ScreenshotCoordinator.recognizeTextID)
-                        }
-                        .padding(.vertical, 6)
-
-                        RowDivider()
-
-                        HStack(spacing: 12) {
-                            SymbolTile(symbol: "doc.on.clipboard")
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(t("Silent recognition"))
-                                Text(t("Copy the result and show a short preview instead of opening the result window."))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Toggle("", isOn: $silentRecognition)
-                                .toggleStyle(.switch)
-                                .labelsHidden()
                         }
                         .padding(.vertical, 6)
                     }
@@ -814,6 +780,82 @@ private struct RecordingPane: View {
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         folder = url.path
+    }
+}
+
+// MARK: - Recognize Text
+
+private struct TextRecognitionPane: View {
+    @ObservedObject var model: AppModel
+
+    @AppStorage(ScreenshotPreferences.silentRecognitionKey) private var silentRecognition = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 26) {
+                PaneHeader(
+                    title: t("Recognize Text"),
+                    subtitle: t("Select a region or window and read its text or QR code, on this Mac.")
+                )
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(text: t("Shortcut"))
+
+                    SettingsCard {
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "text.viewfinder")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("Recognize Text"))
+                                Text(t("Starts a selection from any app; choosing the area runs recognition."))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            ShortcutField(model: model, id: ScreenshotCoordinator.recognizeTextID)
+                        }
+                        .padding(.vertical, 6)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(text: t("Result"))
+
+                    SettingsCard {
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "doc.on.clipboard")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("Silent recognition"))
+                                Text(t("Copy the result and show a short preview instead of opening the result window."))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $silentRecognition)
+                                .toggleStyle(.switch)
+                                .labelsHidden()
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "lock.shield")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("On this Mac"))
+                                Text(t("Uses the macOS Vision models; nothing is uploaded. Reads Chinese, English, Japanese and Korean, and copies a QR code's content when one is found."))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 6)
+                    }
+                }
+            }
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 

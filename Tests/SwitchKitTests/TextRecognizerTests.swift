@@ -69,6 +69,12 @@ final class TextRecognizerTests: XCTestCase {
         XCTAssertEqual(result.clipboardText, "https://github.com/jwcrystal/switchdeck")
     }
 
+    func testWarmUpLeavesRecognitionWorking() throws {
+        TextRecognizer.warmUp()
+        let image = try XCTUnwrap(Self.render(["Warm start"]))
+        XCTAssertTrue(try TextRecognizer.recognize(image).text.contains("Warm start"))
+    }
+
     func testBlankImageFindsNothing() throws {
         let image = try XCTUnwrap(Self.render([]))
         let result = try TextRecognizer.recognize(image)

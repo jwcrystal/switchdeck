@@ -38,6 +38,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.openPermissions = { [weak self] in self?.showSetup() }
         menuController = controller
 
+        // Load the text-recognition models in the background, so the first
+        // recognition after login does not wait for them.
+        if model.config.isEnabled(ScreenshotCoordinator.recognizeTextID) {
+            Task.detached(priority: .utility) {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                TextRecognizer.warmUp()
+            }
+        }
+
         permissions.refresh()
         let launchingForScreenshot = CommandLine.arguments.contains("--show-settings")
         if !model.config.didCompleteSetup && !launchingForScreenshot {
