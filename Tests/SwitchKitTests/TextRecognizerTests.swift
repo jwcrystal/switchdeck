@@ -36,6 +36,42 @@ final class TextRecognizerTests: XCTestCase {
         XCTAssertEqual(TextRecognizer.unique(["a", "b", "a"]), ["a", "b"])
     }
 
+    // MARK: - Editing helpers
+
+    func testJoinLinesSpacesLatinWords() {
+        XCTAssertEqual(TextRecognizer.joinLines("The quick brown\nfox jumps\n\nover"), "The quick brown fox jumps over")
+    }
+
+    func testJoinLinesKeepsChineseTight() {
+        XCTAssertEqual(TextRecognizer.joinLines("螢幕保持\n開啟，文字\n辨識。"), "螢幕保持開啟，文字辨識。")
+    }
+
+    func testJoinLinesMixedScripts() {
+        XCTAssertEqual(TextRecognizer.joinLines("使用 Vision\n模型辨識\nKeep Display\nOn"), "使用 Vision模型辨識Keep Display On")
+        XCTAssertEqual(TextRecognizer.joinLines("日本語の\nテキスト"), "日本語のテキスト")
+        XCTAssertEqual(TextRecognizer.joinLines("한국어\n텍스트"), "한국어텍스트")
+    }
+
+    func testJoinLinesTrimsAndHandlesEmpty() {
+        XCTAssertEqual(TextRecognizer.joinLines("  one  \n   two "), "one two")
+        XCTAssertEqual(TextRecognizer.joinLines(""), "")
+        XCTAssertEqual(TextRecognizer.joinLines("single"), "single")
+    }
+
+    func testCounts() {
+        let counts = TextRecognizer.counts("文字 辨識\n\nab c\n")
+        XCTAssertEqual(counts.lines, 2)
+        XCTAssertEqual(counts.characters, 7)
+        XCTAssertEqual(TextRecognizer.counts("").lines, 0)
+    }
+
+    func testOpenableLinkOnlyHTTP() {
+        XCTAssertEqual(TextRecognizer.openableLink(in: ["hello", "https://example.com/a"])?.absoluteString, "https://example.com/a")
+        XCTAssertNil(TextRecognizer.openableLink(in: ["file:///etc/passwd", "javascript:alert(1)", "ssh://host"]))
+        XCTAssertNil(TextRecognizer.openableLink(in: ["https://", "plain text"]))
+        XCTAssertEqual(TextRecognizer.openableLink(in: [" http://Example.com "])?.host, "Example.com")
+    }
+
     // MARK: - Vision, on rendered images
 
     func testReadsEnglishText() throws {

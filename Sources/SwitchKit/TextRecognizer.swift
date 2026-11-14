@@ -69,6 +69,73 @@ public enum TextRecognizer {
         return Result(lines: lines, codes: unique(codes))
     }
 
+    // MARK: - Editing helpers
+
+    /// Joins wrapped lines into one paragraph, the usual fix-up after reading
+    /// text that was broken across lines in a page or PDF. No space goes
+    /// between CJK characters (or CJK punctuation); a single space goes
+    /// between Latin words. Blank lines are dropped.
+    public static func joinLines(_ text: String) -> String {
+        let lines = text.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        var joined = ""
+        for line in lines {
+            if let last = joined.unicodeScalars.last, let first = line.unicodeScalars.first,
+               !isCJK(last), !isCJK(first) {
+                joined += " "
+            }
+            joined += line
+        }
+        return joined
+    }
+
+    /// Lines with text, and characters that are not whitespace.
+    public static func counts(_ text: String) -> (lines: Int, characters: Int) {
+        let lines = text.split(whereSeparator: \.isNewline)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            .count
+        let characters = text.filter { !$0.isWhitespace }.count
+        return (lines, characters)
+    }
+
+    /// The first http(s) link among the codes, the only kind worth offering to
+    /// open: other schemes could launch arbitrary apps.
+    public static func openableLink(in codes: [String]) -> URL? {
+        for code in codes {
+            guard let url = URL(string: code.trimmingCharacters(in: .whitespacesAndNewlines)),
+                  let scheme = url.scheme?.lowercased(),
+                  scheme == "http" || scheme == "https",
+                  url.host?.isEmpty == false
+            else { continue }
+            return url
+        }
+        return nil
+    }
+
+    static func isCJK(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x1100...0x11FF,   // Hangul Jamo
+             0x2E80...0x2FDF,   // CJK radicals, Kangxi
+             0x3000...0x303F,   // CJK symbols and punctuation
+             0x3040...0x30FF,   // Hiragana, Katakana
+             0x3100...0x31FF,   // Bopomofo, Katakana extensions
+             0x3400...0x4DBF,   // CJK extension A
+             0x4E00...0x9FFF,   // CJK unified ideographs
+             0xAC00...0xD7AF,   // Hangul syllables
+             0xF900...0xFAFF,   // CJK compatibility ideographs
+             0xFE30...0xFE4F,   // CJK compatibility forms
+             0xFF00...0xFFEF,   // Fullwidth forms and punctuation
+             0x20000...0x2FA1F: // CJK extensions B and later
+            return true
+        default:
+            return false
+        }
+    }
+
+    // MARK: - Vision
+
     /// Accurate level, Chinese before English, with language detection.
     /// With Chinese first and no detection, English words get "corrected"
     /// into wrong ones ("reads" -> "reaas"); with English first, Chinese is

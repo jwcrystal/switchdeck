@@ -41,7 +41,7 @@ Needs macOS 14 or later and the Xcode command line tools (`swift --version` shou
 
 ```bash
 git clone https://github.com/jwcrystal/switchdeck.git && cd switchdeck
-swift test                      # 126 tests, no UI needed
+swift test                      # 132 tests, no UI needed
 ./scripts/build-app.sh          # builds build/SwitchDeck.app
 open build/SwitchDeck.app
 ```
