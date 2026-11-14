@@ -21,7 +21,7 @@ Native Swift on AppKit and SwiftUI, no third-party dependencies, free and MIT-li
 - **Your menu, your order.** Hide the switches you never use and drag the rest into place.
 - **Screenshots without switching apps.** Drag a region, mark it up where it is, then `Enter` to copy or `Space` to save.
 
-**Status: pre-1.0 (0.8.0).** Usable day to day, in English and Traditional Chinese. Scrolling capture is paused for now (see [Screenshot editor](#screenshot-editor)), and the settings file format may still change before 1.0.
+**Status: pre-1.0 (0.9.0).** Usable day to day, in English and Traditional Chinese. Scrolling capture is paused for now (see [Screenshot editor](#screenshot-editor)), and the settings file format may still change before 1.0.
 
 ## Install
 
