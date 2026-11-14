@@ -144,6 +144,33 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(trash.subtitle, "No access")
     }
 
+    private final class FakeTrash: TrashAccess {
+        var count: Int?
+        init(count: Int?) { self.count = count }
+        func itemCount() -> Int? { count }
+        func empty() throws { count = 0 }
+    }
+
+    func testBackgroundTrashCountShowsNothingUntilTheRefreshFinishes() throws {
+        let trash = EmptyTrashSwitch(access: FakeTrash(count: 3), countsInBackground: true)
+        XCTAssertNil(trash.subtitle)
+
+        trash.waitForPendingCount()
+        XCTAssertEqual(trash.subtitle, "3 items")
+
+        try trash.empty()
+        XCTAssertEqual(trash.subtitle, "Empty")
+        trash.waitForPendingCount()
+        XCTAssertEqual(trash.subtitle, "Empty")
+    }
+
+    func testBackgroundTrashCountReportsNoAccessAfterWaiting() {
+        let trash = EmptyTrashSwitch(access: FakeTrash(count: nil), countsInBackground: true)
+        _ = trash.subtitle
+        trash.waitForPendingCount()
+        XCTAssertEqual(trash.subtitle, "No access")
+    }
+
     // MARK: - Hotkeys
 
     func testHotkeyDisplayStringUsesCanonicalOrder() {

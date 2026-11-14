@@ -32,7 +32,7 @@ public struct SwitchCatalog {
         let nightShift = NightShiftSwitch()
         let lockScreen = LockScreenSwitch()
         let stageManager = StageManagerSwitch()
-        let trash = EmptyTrashSwitch()
+        let trash = EmptyTrashSwitch(countsInBackground: true)
         let recording = RecordingSwitch()
         let keyboard = KeyboardLockSwitch()
         let screenClean = ScreenCleanSwitch(keyboard: keyboard)
