@@ -22,6 +22,7 @@ public struct SwitchCatalog {
         let keepAwake = KeepAwakeSwitch()
         let hiddenFiles = ShowHiddenFilesSwitch()
         let desktopIcons = HideDesktopIconsSwitch()
+        let dockAutohide = DockAutohideSwitch()
         let darkMode = DarkModeSwitch()
         let pasteboard = EmptyPasteboardSwitch()
         let quitAll = QuitAllAppsSwitch()
@@ -51,6 +52,14 @@ public struct SwitchCatalog {
                 state: { desktopIcons.areIconsHidden },
                 subtitle: { desktopIcons.areIconsHidden ? t("Icons hidden") : nil },
                 perform: { try desktopIcons.toggle() }
+            ),
+            SwitchItem(
+                id: "dockAutohide",
+                title: t("Dock Autohide"),
+                symbolName: "dock.rectangle",
+                kind: .toggle,
+                state: { dockAutohide.isOn },
+                perform: { try dockAutohide.toggle() }
             ),
             SwitchItem(
                 id: "screenClean",
