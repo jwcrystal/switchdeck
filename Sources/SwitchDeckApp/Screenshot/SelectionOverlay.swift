@@ -267,12 +267,17 @@ final class SelectionView: NSView {
             NSImage(cgImage: frozenScreen, size: bounds.size).draw(in: bounds)
         }
 
+        // Everything outside the region (or the window a click would
+        // capture) dims; the region itself keeps full brightness.
         let path = NSBezierPath(rect: bounds)
         if let selection, selection.width > 1, selection.height > 1 {
             path.append(NSBezierPath(rect: selection))
             path.windingRule = .evenOdd
+        } else if selection == nil, !editing, let hovered {
+            path.append(NSBezierPath(rect: hovered.rect))
+            path.windingRule = .evenOdd
         }
-        NSColor.black.withAlphaComponent(editing ? 0.42 : 0.32).setFill()
+        NSColor.black.withAlphaComponent(editing ? 0.5 : 0.45).setFill()
         path.fill()
 
         if !editing {
@@ -306,7 +311,7 @@ final class SelectionView: NSView {
             if windowTargets.isEmpty { drawHandles(for: selection) }
             let stroke = NSBezierPath(rect: selection)
             stroke.lineWidth = 1
-            NSColor.controlAccentColor.withAlphaComponent(0.8).setStroke()
+            NSColor.white.withAlphaComponent(0.9).setStroke()
             stroke.stroke()
             if scrolling == nil {
                 if windowCaptureFailed {
@@ -318,7 +323,7 @@ final class SelectionView: NSView {
         } else {
             let stroke = NSBezierPath(rect: selection)
             stroke.lineWidth = 1
-            NSColor.controlAccentColor.setStroke()
+            NSColor.white.withAlphaComponent(0.9).setStroke()
             stroke.stroke()
 
             for target in windowTargets {
@@ -345,15 +350,17 @@ final class SelectionView: NSView {
         }
     }
 
-    /// Dashed accent outline over the window a click would capture.
+    /// Outline over the window a click would capture. With no selection the
+    /// window is already cut out of the dimming, so a solid line suffices;
+    /// while adding windows to a selection it stays dashed.
     private func drawWindowHighlight() {
         guard let hovered, selection == nil || !windowTargets.isEmpty else { return }
         let path = NSBezierPath(rect: hovered.rect)
         path.lineWidth = 1
-        path.setLineDash([5, 3], count: 2, phase: 0)
-        NSColor.controlAccentColor.withAlphaComponent(0.1).setFill()
-        path.fill()
-        NSColor.controlAccentColor.withAlphaComponent(0.95).setStroke()
+        if selection != nil {
+            path.setLineDash([5, 3], count: 2, phase: 0)
+        }
+        NSColor.white.withAlphaComponent(0.9).setStroke()
         path.stroke()
     }
 
@@ -391,7 +398,7 @@ final class SelectionView: NSView {
 
     private func drawHandles(for rect: CGRect) {
         NSColor.white.setFill()
-        NSColor.controlAccentColor.setStroke()
+        NSColor.black.withAlphaComponent(0.35).setStroke()
 
         for handleRect in handleRects(for: rect).values {
             let path = NSBezierPath(roundedRect: handleRect, xRadius: 2, yRadius: 2)
