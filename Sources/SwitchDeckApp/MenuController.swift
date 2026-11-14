@@ -109,6 +109,15 @@ final class MenuController: NSObject, NSMenuDelegate {
         permissionsItem.image = symbol("checkmark.shield")
         menu.addItem(permissionsItem)
 
+        let checkForUpdatesItem = NSMenuItem(
+            title: t("Check for Updates…"),
+            action: #selector(checkForUpdates),
+            keyEquivalent: ""
+        )
+        checkForUpdatesItem.target = self
+        checkForUpdatesItem.image = symbol("arrow.down.circle")
+        menu.addItem(checkForUpdatesItem)
+
         let settings = NSMenuItem(title: t("Settings…"), action: #selector(showSettings), keyEquivalent: "")
         settings.target = self
         settings.image = symbol("gearshape")
@@ -194,6 +203,60 @@ final class MenuController: NSObject, NSMenuDelegate {
     @objc private func runAction(_ sender: NSMenuItem) {
         guard let box = sender.representedObject as? ActionBox else { return }
         perform { try box.run() }
+    }
+
+    @objc private func checkForUpdates() {
+        // `swift build` bundles carry no Info.plist version; treat that as 0.0.0.
+        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+        let checker = UpdateChecker(currentVersion: current)
+
+        Task {
+            do {
+                switch try await checker.check() {
+                case .updateAvailable(let release):
+                    showUpdateAvailable(release, currentVersion: current)
+                case .upToDate:
+                    showUpToDate(currentVersion: current)
+                }
+            } catch {
+                showUpdateFailure(error)
+            }
+        }
+    }
+
+    private func showUpdateAvailable(_ release: ReleaseInfo, currentVersion: String) {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.messageText = tf("SwitchDeck %@ is available", release.version)
+        alert.informativeText = tf("You have %@.", currentVersion)
+        alert.addButton(withTitle: t("Download"))
+        alert.addButton(withTitle: t("Later"))
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(release.url)
+        }
+    }
+
+    private func showUpToDate(currentVersion: String) {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.messageText = t("SwitchDeck is up to date")
+        alert.informativeText = tf("Version %@ is the latest.", currentVersion)
+        alert.addButton(withTitle: t("OK"))
+        alert.runModal()
+    }
+
+    private func showUpdateFailure(_ error: Error) {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = t("Couldn't check for updates")
+        alert.informativeText = error.localizedDescription
+        alert.addButton(withTitle: t("OK"))
+        alert.runModal()
     }
 
     @objc private func showSettings() {

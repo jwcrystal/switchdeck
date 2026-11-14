@@ -255,3 +255,17 @@
 "Join Lines" = "合併成一行";
 "Merge the lines into one paragraph: no space between Chinese characters, one between words." = "把多行合併成一段：中文字之間不加空格，英文單字之間補一個空格。";
 "Open Link" = "開啟連結";
+
+/* Update check */
+"Check for Updates…" = "檢查更新…";
+"SwitchDeck %@ is available" = "SwitchDeck %@ 已推出";
+"You have %@." = "目前版本為 %@。";
+"Download" = "下載";
+"Later" = "稍後";
+"SwitchDeck is up to date" = "SwitchDeck 已是最新版本";
+"Version %@ is the latest." = "%@ 已是最新版本。";
+"Couldn't check for updates" = "無法檢查更新";
+"The update server returned an error." = "更新伺服器回應錯誤。";
+"The update server sent an unexpected response." = "更新伺服器回應的內容無法辨識。";
+"The update server sent a version number that could not be read." = "更新伺服器提供的版本號無法辨識。";
+"The current version number could not be read." = "目前版本號無法辨識。";
