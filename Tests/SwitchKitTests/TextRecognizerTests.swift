@@ -84,10 +84,10 @@ final class TextRecognizerTests: XCTestCase {
     }
 
     func testReadsTraditionalChinese() throws {
-        let image = try XCTUnwrap(Self.render(["螢幕保持開啟", "文字辨識"]))
+        let image = try XCTUnwrap(Self.render(["螢幕保持開啟", "請辨識這一行繁體中文文字"]))
         let result = try TextRecognizer.recognize(image)
         XCTAssertTrue(result.text.contains("螢幕保持開啟"), result.text)
-        XCTAssertTrue(result.text.contains("文字辨識"), result.text)
+        XCTAssertTrue(result.text.contains("繁體中文文字"), result.text)
     }
 
     func testReadsMixedChineseAndEnglish() throws {
